@@ -3,7 +3,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { TOTAL_DECIMALS, WORKER_JWT_SECRET } from "../config";
 import { getNextTask } from "../db";
-import { workerAuthMiddleware } from "./middleware";
+import { workerAuthMiddleware } from "../middleware";
 import { createSubmissionInput } from "../types";
 
 const TOTAL_SUBMISSIONS: number = 100;

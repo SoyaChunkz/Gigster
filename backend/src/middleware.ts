@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { JWT_SECRET, WORKER_JWT_SECRET } from "../config";
+import { JWT_SECRET, WORKER_JWT_SECRET } from "./config";
 
 export function userAuthMiddleware(req: Request, res: Response, next: NextFunction){
 
