@@ -21,6 +21,9 @@ const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const config_1 = require("../config");
 const middleware_1 = require("../middleware");
 const types_1 = require("../types");
+const tweetnacl_1 = __importDefault(require("tweetnacl"));
+const web3_js_1 = require("@solana/web3.js");
+const bs58_1 = __importDefault(require("bs58"));
 // @ts-ignore
 function userRouter(io) {
     const router = (0, express_1.Router)();
@@ -32,15 +35,49 @@ function userRouter(io) {
         },
         region: "us-east-1"
     });
+    const connection = new web3_js_1.Connection((0, web3_js_1.clusterApiUrl)('devnet'), 'confirmed');
     const DEFAULT_TITLE = "Select the most clickable thumbnail";
+    const ALLOWED_TIME_DIFF = 5 * 60 * 1000;
     // signin with wallet
     // @ts-ignore
     router.post("/signin", (req, res) => __awaiter(this, void 0, void 0, function* () {
-        // TODO: add sign verification logic here
-        const hardcodedWalletAddress = "3qfpeZW7yMV1eWNsKiM5UWcZhmRMW7gig4rRoV8biUE9";
+        const { publicKey, encodedSignature, messageFE } = req.body;
+        console.log("Received PublicKey:", publicKey);
+        console.log("Received encodedSignature:", encodedSignature);
+        console.log("Received message:", messageFE);
+        if (!encodedSignature || !publicKey || !messageFE) {
+            return res.status(400).json({ error: "Missing signature or publicKey or message" });
+        }
+        const decodedSignature = bs58_1.default.decode(encodedSignature);
+        console.log("decodedSignature", decodedSignature);
+        const messagePrefix = `Sign into Gigster\nWallet: ${publicKey === null || publicKey === void 0 ? void 0 : publicKey.toString()}\nTimestamp: `;
+        if (!messageFE.startsWith(messagePrefix)) {
+            return res.status(400).json({ error: "Invalid message format" });
+        }
+        const timestampStr = messageFE.replace(messagePrefix, "").trim();
+        console.log("Extracted Timestamp:", timestampStr);
+        const [datePart, timePart] = timestampStr.split("_");
+        const [day, month, year] = datePart.split("-").map(Number);
+        const [hours, minutes, seconds] = timePart.split("-").map(Number);
+        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        console.log("Parsed Timestamp (ms):", timestamp);
+        if (isNaN(timestamp)) {
+            return res.status(400).json({ error: "Invalid timestamp format" });
+        }
+        const now = Date.now();
+        console.log("Current Time (ms):", now);
+        if (Math.abs(now - timestamp) > ALLOWED_TIME_DIFF) {
+            return res.status(401).json({ error: "Timestamp expired" });
+        }
+        const verified = tweetnacl_1.default.sign.detached.verify(new TextEncoder().encode(messageFE), decodedSignature, new web3_js_1.PublicKey(publicKey).toBytes());
+        if (!verified) {
+            return res.status(401).json({
+                message: "Incorrect signature"
+            });
+        }
         const existingUser = yield prisma.user.findFirst({
             where: {
-                address: hardcodedWalletAddress
+                address: publicKey
             }
         });
         if (existingUser) {
@@ -54,7 +91,7 @@ function userRouter(io) {
         else {
             const user = yield prisma.user.create({
                 data: {
-                    address: hardcodedWalletAddress
+                    address: publicKey
                 }
             });
             const token = jsonwebtoken_1.default.sign({
@@ -121,7 +158,83 @@ function userRouter(io) {
         }
     }));
     // @ts-ignore
+    router.post("/storeTxn", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            console.log("storing new txn");
+            //@ts-ignore
+            const userId = req.userId;
+            const { signature } = req.body;
+            const user = yield prisma.user.findFirst({
+                where: {
+                    id: userId
+                }
+            });
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            const existingTxn = yield prisma.txnStore.findFirst({
+                where: { signature }
+            });
+            if (existingTxn) {
+                return res.status(400).json({ error: "Transaction already exists" });
+            }
+            yield prisma.txnStore.create({
+                data: {
+                    signature,
+                    user_id: userId,
+                    used: false
+                }
+            });
+            return res.json({
+                message: "Txn stored successfuly!"
+            });
+        }
+        catch (error) {
+            console.error("Error storing txn:", error);
+            return res.status(500).json({ error: "Internal Server Error" });
+        }
+    }));
+    // @ts-ignore
+    router.get("/getTxn", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
+        try {
+            console.log("getting  txn");
+            //@ts-ignore
+            const userId = req.userId;
+            const user = yield prisma.user.findFirst({
+                where: {
+                    id: userId
+                }
+            });
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            const txnStore = yield prisma.txnStore.findFirst({
+                where: {
+                    user_id: userId,
+                    used: false
+                },
+                orderBy: {
+                    id: "asc"
+                }
+            });
+            if (!txnStore) {
+                return res.status(404).json({
+                    error: "No unused transaction found"
+                });
+            }
+            return res.json({
+                signature: txnStore.signature,
+                used: txnStore.used
+            });
+        }
+        catch (error) {
+            console.error("Error fetching txn:", error);
+            return res.status(500).json({ error: "Internal Server Error" });
+        }
+    }));
+    // @ts-ignore
     router.post("/task", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         console.log("creating new task");
         //@ts-ignore
         const userId = req.userId;
@@ -139,12 +252,45 @@ function userRouter(io) {
                 id: userId
             }
         });
+        console.log("parsed body: ", parsedData);
+        // const transaction = await connection.getTransaction(parsedData.data.signature, {
+        //     maxSupportedTransactionVersion: 1
+        // });
+        const transactionDetails = yield connection.getParsedTransaction(parsedData.data.signature, "confirmed");
+        console.log("txn: ", transactionDetails);
+        if (!transactionDetails)
+            return res.status(411).json({
+                message: "You've sent the wrong Txn signature."
+            });
+        const transferInstruction = transactionDetails.transaction.message.instructions.find((instr) => instr.programId.toString() === web3_js_1.SystemProgram.programId.toString());
+        if (!transferInstruction)
+            return res.status(411).json({
+                message: "Transaction does not contain a SOL transfer."
+            });
+        console.log("instruction", transferInstruction, "\n", web3_js_1.SystemProgram.programId.toString());
+        if (((_b = (_a = transactionDetails.meta) === null || _a === void 0 ? void 0 : _a.postBalances[1]) !== null && _b !== void 0 ? _b : 0) - ((_d = (_c = transactionDetails === null || transactionDetails === void 0 ? void 0 : transactionDetails.meta) === null || _c === void 0 ? void 0 : _c.preBalances[1]) !== null && _d !== void 0 ? _d : 0) !== 100000000) {
+            return res.status(411).json({
+                message: "Transaction signature/amount incorrect."
+            });
+        }
+        console.log("to address in txn: ", (_e = transactionDetails.transaction.message.accountKeys.at(1)) === null || _e === void 0 ? void 0 : _e.pubkey.toString());
+        if (((_f = transactionDetails.transaction.message.accountKeys.at(1)) === null || _f === void 0 ? void 0 : _f.pubkey.toString()) !== config_1.PARENT_WALLET_ADDRESS) {
+            return res.status(411).json({
+                message: "Transaction sent to wrong address"
+            });
+        }
+        console.log("from address in txn: ", (_g = transactionDetails.transaction.message.accountKeys.at(0)) === null || _g === void 0 ? void 0 : _g.pubkey.toString());
+        if (((_h = transactionDetails.transaction.message.accountKeys.at(0)) === null || _h === void 0 ? void 0 : _h.pubkey.toString()) !== (user === null || user === void 0 ? void 0 : user.address)) {
+            return res.status(411).json({
+                message: "Transaction sent from wrong address"
+            });
+        }
         let response = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
             var _a;
             const taskResponse = yield tx.task.create({
                 data: {
                     title: (_a = parsedData.data.title) !== null && _a !== void 0 ? _a : DEFAULT_TITLE,
-                    amount: 1 * config_1.TOTAL_DECIMALS,
+                    amount: 0.1 * config_1.TOTAL_DECIMALS,
                     signature: parsedData.data.signature,
                     user_id: (user === null || user === void 0 ? void 0 : user.id) || userId
                 }
@@ -154,6 +300,16 @@ function userRouter(io) {
                     image_url: x.fileUrl,
                     task_id: taskResponse.id
                 }))
+            });
+            yield tx.txnStore.update({
+                where: {
+                    signature: parsedData.data.signature,
+                    used: false
+                },
+                data: {
+                    used: true,
+                    task_id: taskResponse.id
+                }
             });
             return taskResponse;
         }));

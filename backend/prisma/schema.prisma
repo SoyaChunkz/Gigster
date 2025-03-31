@@ -18,6 +18,7 @@ model User {
   address       String  @unique
   tasks         Task[]
   payouts       Payouts[]
+  transactions      TxnStore[]
 }
 
 model Worker {
@@ -38,6 +39,7 @@ model Task {
   done         Boolean @default(false)
   user         User    @relation(fields: [user_id], references: [id])
   submissions  Submission[]
+  txn          TxnStore? 
 }
 
 model Option {
@@ -46,6 +48,16 @@ model Option {
   task_id     Int
   task        Task       @relation(fields: [task_id], references: [id])
   submissions Submission[]
+}
+
+model TxnStore {
+  id          Int        @id @default(autoincrement())
+  task_id     Int?       @unique
+  task        Task?      @relation(fields: [task_id], references: [id])
+  signature   String     @unique
+  user_id     Int
+  user        User       @relation(fields: [user_id], references: [id])
+  used        Boolean    @default(false)
 }
 
 model Submission {

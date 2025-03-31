@@ -3,12 +3,16 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { JWT_SECRET, TOTAL_DECIMALS } from "../config";
+import { JWT_SECRET, TOTAL_DECIMALS, PARENT_WALLET_ADDRESS } from "../config";
 import { userAuthMiddleware } from "../middleware";
 import { createTaskInput } from "../types";
+import nacl from "tweetnacl";
+import { PublicKey, Connection, clusterApiUrl, SystemProgram } from "@solana/web3.js";
+import bs58 from "bs58";
 
 // @ts-ignore
 export default function userRouter(io) {
+
     const router = Router();
     const prisma = new PrismaClient();
     const s3Client = new S3Client({
@@ -18,18 +22,69 @@ export default function userRouter(io) {
         },
         region: "us-east-1"
     });
+    const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
     const DEFAULT_TITLE = "Select the most clickable thumbnail";
+    const ALLOWED_TIME_DIFF = 5 * 60 * 1000;
 
     // signin with wallet
     // @ts-ignore
     router.post("/signin", async (req, res) => {
 
-        // TODO: add sign verification logic here
-        const hardcodedWalletAddress = "3qfpeZW7yMV1eWNsKiM5UWcZhmRMW7gig4rRoV8biUE9";
+        const { publicKey, encodedSignature, messageFE } = req.body;
+        console.log("Received PublicKey:", publicKey);
+        console.log("Received encodedSignature:", encodedSignature);
+        console.log("Received message:", messageFE);
+
+        if (!encodedSignature || !publicKey || !messageFE) {
+            return res.status(400).json({ error: "Missing signature or publicKey or message" });
+        }
+
+        const decodedSignature = bs58.decode(encodedSignature);
+        console.log("decodedSignature", decodedSignature);
+
+        
+        const messagePrefix = `Sign into Gigster\nWallet: ${publicKey?.toString()}\nTimestamp: `;
+        if (!messageFE.startsWith(messagePrefix)) {
+            return res.status(400).json({ error: "Invalid message format" });
+        }
+
+        const timestampStr = messageFE.replace(messagePrefix, "").trim();
+        console.log("Extracted Timestamp:", timestampStr);
+
+        const [datePart, timePart] = timestampStr.split("_");
+        const [day, month, year] = datePart.split("-").map(Number);
+        const [hours, minutes, seconds] = timePart.split("-").map(Number);
+
+        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        console.log("Parsed Timestamp (ms):", timestamp);
+
+        if (isNaN(timestamp)) {
+            return res.status(400).json({ error: "Invalid timestamp format" });
+        }
+
+        const now = Date.now();
+        console.log("Current Time (ms):", now);
+
+        if (Math.abs(now - timestamp) > ALLOWED_TIME_DIFF) {
+            return res.status(401).json({ error: "Timestamp expired" });
+        }
+
+
+        const verified = nacl.sign.detached.verify(
+            new TextEncoder().encode(messageFE),
+            decodedSignature,
+            new PublicKey(publicKey).toBytes(),
+        );
+
+        if (!verified) {
+            return res.status(401).json({
+                message: "Incorrect signature"
+            })
+        }
 
         const existingUser = await prisma.user.findFirst({
             where: {
-                address: hardcodedWalletAddress
+                address: publicKey
             }
         });
 
@@ -46,7 +101,7 @@ export default function userRouter(io) {
 
             const user = await prisma.user.create({
                 data: {
-                    address: hardcodedWalletAddress
+                    address: publicKey
                 }
             });
 
@@ -131,6 +186,98 @@ export default function userRouter(io) {
     });
 
     // @ts-ignore
+    router.post("/storeTxn", userAuthMiddleware, async (req, res) => {
+
+        try {
+            console.log("storing new txn")
+
+            //@ts-ignore
+            const userId = req.userId
+
+            const { signature } = req.body;
+
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: userId
+                }
+            });
+
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+
+            const existingTxn = await prisma.txnStore.findFirst({
+                where: { signature }
+            });
+
+            if (existingTxn) {
+                return res.status(400).json({ error: "Transaction already exists" });
+            }
+
+            await prisma.txnStore.create({
+                data: {
+                    signature,
+                    user_id: userId,
+                    used: false
+                }
+            });
+
+            return res.json({
+                message: "Txn stored successfuly!"
+            });
+
+        } catch (error) {
+            console.error("Error storing txn:", error);
+            return res.status(500).json({ error: "Internal Server Error" });
+        }
+    });
+
+    // @ts-ignore
+    router.get("/getTxn", userAuthMiddleware, async (req, res) => {
+
+        try {
+            console.log("getting  txn")
+
+            //@ts-ignore
+            const userId = req.userId
+            
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: userId
+                }
+            });
+
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+
+            const txnStore = await prisma.txnStore.findFirst({
+                where: {
+                    user_id: userId,
+                    used: false
+                },
+                orderBy: {
+                    id : "asc"
+                }
+            });
+
+            if (!txnStore) {
+                return res.status(404).json({
+                    error: "No unused transaction found" 
+                });
+            }
+
+            return res.json({
+                signature: txnStore.signature,
+                used: txnStore.used
+            });
+        } catch (error) {
+            console.error("Error fetching txn:", error);
+            return res.status(500).json({ error: "Internal Server Error" });
+        }
+    });
+
+    // @ts-ignore
     router.post("/task", userAuthMiddleware, async (req, res) => {
 
         console.log("creating new task")
@@ -156,12 +303,62 @@ export default function userRouter(io) {
             }
         });
 
+        console.log("parsed body: ", parsedData)
+
+        // const transaction = await connection.getTransaction(parsedData.data.signature, {
+        //     maxSupportedTransactionVersion: 1
+        // });
+
+        const transactionDetails = await connection.getParsedTransaction(parsedData.data.signature, "confirmed");
+
+        console.log("txn: ", transactionDetails)
+
+        if (!transactionDetails) 
+            return res.status(411).json({
+                message: "You've sent the wrong Txn signature."
+            });
+
+        const transferInstruction = transactionDetails.transaction.message.instructions.find(
+            (instr) => instr.programId.toString() === SystemProgram.programId.toString()
+        );
+
+        if (!transferInstruction) 
+            return res.status(411).json({ 
+                message: "Transaction does not contain a SOL transfer."
+            });
+
+        console.log("instruction", transferInstruction, "\n", SystemProgram.programId.toString());
+
+        if ((transactionDetails.meta?.postBalances[1] ?? 0) - (transactionDetails?.meta?.preBalances[1] ?? 0) !== 100000000) {
+            return res.status(411).json({
+                message: "Transaction signature/amount incorrect."
+            });
+        }
+
+        console.log("to address in txn: ", transactionDetails.transaction.message.accountKeys.at(1)?.pubkey.toString());
+
+        if (transactionDetails.transaction.message.accountKeys.at(1)?.pubkey.toString() !== PARENT_WALLET_ADDRESS) {
+            return res.status(411).json({
+                message: "Transaction sent to wrong address"
+            });
+        }
+
+        console.log("from address in txn: ", transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString());
+
+        if (transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString()  !== user?.address) {
+            return res.status(411).json({
+                message: "Transaction sent from wrong address"
+            })
+        }
+
         let response = await prisma.$transaction(async tx => {
+
+            
 
             const taskResponse = await tx.task.create({
                 data: {
                     title: parsedData.data.title ?? DEFAULT_TITLE,
-                    amount: 1 * TOTAL_DECIMALS,
+                    amount: 0.1 * TOTAL_DECIMALS,
                     signature: parsedData.data.signature,
                     user_id: user?.id || userId
                 }
@@ -172,6 +369,17 @@ export default function userRouter(io) {
                     image_url: x.fileUrl,
                     task_id: taskResponse.id
                 }))
+            });
+
+            await tx.txnStore.update({
+                where: {
+                    signature: parsedData.data.signature,
+                    used: false
+                },  
+                data: {
+                    used: true,
+                    task_id: taskResponse.id
+                } 
             });
 
             return taskResponse;

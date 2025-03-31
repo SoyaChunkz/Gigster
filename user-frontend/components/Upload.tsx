@@ -3,23 +3,53 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { UploadImage } from "./UploadImage";
 import { USER_BACKEND_URL, CLOUDFRONT_URL } from "@/utils";
-import { useRouter } from "next/navigation";
 import { FaTimes  } from "react-icons/fa";
 import toast from "react-hot-toast";
+import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { useWallet, useConnection  } from "@solana/wallet-adapter-react";
 
 export const Upload = () => {
     const [images, setImages] = useState<string[]>([]);
     const [title, setTitle] = useState<string>("");
-    const [txSignature, setTxSignature] = useState<string>("0x123123");
-    const router = useRouter();
+    const [txSignature, setTxSignature] = useState<string>("");
+    const [loading, setLoading] = useState<boolean>(false);
+    const { publicKey, sendTransaction } = useWallet();
+    const { connection } = useConnection();
+
 
     useEffect(() => {
         console.log("Updated images state:", images);
     }, [images]);
 
+    const fetchTxn = async () => {
+        try {
+            const response: any = await axios.get(`${USER_BACKEND_URL}/getTxn`, {
+                    headers: {
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`
+                    }
+                }
+            );
+
+            if (response.data.signature) {
+                setTxSignature(response.data.signature);
+                return response.data.signature;
+            } 
+        } catch (error) {
+            console.error("Error fetching txn:", error);
+        }
+    }
     const onSubmit = async () => {
 
         try {
+            setLoading(true); 
+            
+            const signature = await fetchTxn();
+
+            if (!signature) {
+                toast.error("No transaction found! Please make a payment first.");
+                return;
+            }
+            
             const response: any = await axios.post(
                 `${USER_BACKEND_URL}/task`,
                 {
@@ -27,7 +57,7 @@ export const Upload = () => {
                         fileUrl: image,
                     })),
                     title: title || "Select the most clickable thumbnail",
-                    signature: txSignature
+                    signature
                 }, {
                     headers: {
                         "Authorization": `Bearer ${localStorage.getItem("token")}`
@@ -35,9 +65,15 @@ export const Upload = () => {
                 }
             );
 
-            // router.push(`/task/${response.data.id}`);
+            window.open(`/task/${response.data.id}`, "_blank");
+            setImages([]);
+            setTxSignature("");
+            setTitle("");
+            toast.success("Task created successfully!");
         } catch (error) {
             console.error("Error submitting task:", error);
+        } finally {
+            setLoading(false); 
         }
     }
 
@@ -67,59 +103,72 @@ export const Upload = () => {
         }
     };
 
-    const makePayment =  () => {}
+    const makePayment = async () => {
+
+        try {
+            if (await fetchTxn()) {
+                toast.success("Using previous unused transaction.");
+                return;
+            }
+            
+            if (!publicKey) {
+                toast.error("Wallet not connected!");
+                return;
+            }
+            setLoading(true);
+            const transaction = new Transaction().add(
+                SystemProgram.transfer({
+                    fromPubkey: publicKey!,
+                    toPubkey: new PublicKey("E5NpEGWMaqdbB91QbKq5CWHwtDfV1caxQeTAQAGPqeHy"),
+                    lamports: 100000000
+    
+                })
+            );
+            
+            const {
+                context: { slot: minContextSlot },
+                value: { blockhash, lastValidBlockHeight }, 
+            } = await connection.getLatestBlockhashAndContext();
+
+            const signature = await sendTransaction(transaction, connection, { minContextSlot });
+    
+            const confirmation = await connection.confirmTransaction({
+                blockhash,
+                lastValidBlockHeight,
+                signature
+            });
+
+            if (!confirmation) {
+                throw new Error("Transaction confirmation failed");
+            }
+
+            console.log("txn: ", confirmation);
+    
+            const response: any = await axios.post(
+                `${USER_BACKEND_URL}/storeTxn`,
+                {
+                    signature
+                }, {
+                    headers: {
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`
+                    }           
+                }
+            );
+
+            if (response.data.message === "Txn stored successfuly!") {
+                setTxSignature(signature);
+                toast.success("Payment of 0.1 SOL successful! \nKindly submit your task.")
+            }
+        } catch (error) {
+            console.error("Payment failed:", error);
+            toast.error("Transaction failed. Please try again.");    
+        } finally {
+            setLoading(false); 
+        }
+
+    };
 
   return (
-    // <div className="flex justify-center">
-    //     <div className="max-w-screen-lg w-full">
-    //         <div className="text-2xl text-left pt-20 pl-4 w-full">
-    //             Create a TASK!
-    //         </div>
-
-    //         <label className="pl-4 block mt-2 text-md font-medium">Task details</label>
-            
-    //         <input
-    //             onChange={ (e) => {
-    //                 setTitle(e.target.value);
-    //             }} 
-    //             type="text"
-    //             id="title"
-    //             className="ml-4 mt-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-    //             placeholder="What is your task?"
-    //             required
-    //         />
-
-    //         <label className="pl-4 block mt-8 text-md font-medium text-white">
-    //             Add Images
-    //         </label>
-
-    //         <div className="flex justify-center pt-4 max-w-screen-lg">
-    //             {images.map(image => <UploadImage 
-    //                                     image={image} 
-    //                                     onImageAdded={(fileUrl) => {
-    //                                         setImages(i => [...i, fileUrl]);
-    //                                     }} 
-    //                                   />
-    //             )}
-    //         </div>
-
-    //         <div className="ml-4 pt-2 flex justify-center">
-    //             <UploadImage 
-    //                 onImageAdded={(fileUrl) => {
-    //                     setImages(i => [...i, fileUrl]);
-    //                 }} 
-    //             />
-    //         </div>
-
-    //         <div className="flex justify-center">
-    //             <button onClick={txSignature ? onSubmit : makePayment} type="button" className="mt-4 text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-full text-sm px-5 py-2.5 me-2 mb-2 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700">
-    //                 {txSignature ? "Submit Task" : "Pay 0.1 SOL"}
-    //             </button>
-    //         </div>
-
-    //     </div>
-    // </div>
-
     <div className="flex justify-center bg-gray-900 min-h-screen p-6">
         <div className="max-w-2xl w-full bg-gray-800 p-6 rounded-lg shadow-lg">
             <h1 className="text-3xl text-white font-semibold">Create a Task</h1>
@@ -163,9 +212,18 @@ export const Upload = () => {
             <div className="flex justify-center mt-6">
                 <button
                     onClick={txSignature ? onSubmit : makePayment}
-                    className="px-6 py-3 text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition"
+                    disabled={loading}
+                    className={`px-6 py-3 text-white rounded-lg font-medium transition ${
+                        loading
+                            ? "bg-gray-500 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-700"
+                    }`}
                 >
-                    {txSignature ? "Submit Task" : "Pay 0.1 SOL"}
+                    {loading
+                            ? "Processing..."
+                            : txSignature
+                            ? "Submit Task"
+                            : "Pay 0.1 SOL"}
                 </button>
             </div>
         </div>
