@@ -36,8 +36,6 @@ function userRouter(io) {
         region: "us-east-1"
     });
     const connection = new web3_js_1.Connection((0, web3_js_1.clusterApiUrl)('devnet'), 'confirmed');
-    const DEFAULT_TITLE = "Select the most clickable thumbnail";
-    const ALLOWED_TIME_DIFF = 5 * 60 * 1000;
     // signin with wallet
     // @ts-ignore
     router.post("/signin", (req, res) => __awaiter(this, void 0, void 0, function* () {
@@ -66,7 +64,7 @@ function userRouter(io) {
         }
         const now = Date.now();
         console.log("Current Time (ms):", now);
-        if (Math.abs(now - timestamp) > ALLOWED_TIME_DIFF) {
+        if (Math.abs(now - timestamp) > config_1.ALLOWED_TIME_DIFF) {
             return res.status(401).json({ error: "Timestamp expired" });
         }
         const verified = tweetnacl_1.default.sign.detached.verify(new TextEncoder().encode(messageFE), decodedSignature, new web3_js_1.PublicKey(publicKey).toBytes());
@@ -289,7 +287,7 @@ function userRouter(io) {
             var _a;
             const taskResponse = yield tx.task.create({
                 data: {
-                    title: (_a = parsedData.data.title) !== null && _a !== void 0 ? _a : DEFAULT_TITLE,
+                    title: (_a = parsedData.data.title) !== null && _a !== void 0 ? _a : config_1.DEFAULT_TITLE,
                     amount: 0.1 * config_1.TOTAL_DECIMALS,
                     signature: parsedData.data.signature,
                     user_id: (user === null || user === void 0 ? void 0 : user.id) || userId

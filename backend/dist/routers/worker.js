@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -20,18 +53,58 @@ const config_1 = require("../config");
 const db_1 = require("../db");
 const middleware_1 = require("../middleware");
 const types_1 = require("../types");
+const tweetnacl_1 = __importDefault(require("tweetnacl"));
+const web3_js_1 = require("@solana/web3.js");
+const bs58_1 = __importStar(require("bs58"));
+const client_2 = require("@prisma/client");
 const TOTAL_SUBMISSIONS = 100;
+// TODO: locked_amount field is unused, either use it or use raw query to avoid double spending by locking table
 // @ts-ignore
 function workerRouter(io) {
     const router = (0, express_1.Router)();
-    const prisma = new client_1.PrismaClient();
+    const prisma = new client_1.PrismaClient({
+    //log: ['query', 'info', 'warn', 'error'], 
+    });
+    const connection = new web3_js_1.Connection((0, web3_js_1.clusterApiUrl)('devnet'), 'confirmed');
     // @ts-ignore
     router.post("/signin", (req, res) => __awaiter(this, void 0, void 0, function* () {
-        // 8rhZMcFGQRysR6Rh5bAsKELmjSQpJVhuSVg1HVp1N36h
-        const hardcodedWalletAddress = "8rhZMcFGQRysR6Rh5bAsKELmjSQpJVhuSVg1HVp1N36hfdbbffd";
+        const { publicKey, encodedSignature, messageFE } = req.body;
+        console.log("Received PublicKey:", publicKey);
+        console.log("Received encodedSignature:", encodedSignature);
+        console.log("Received message:", messageFE);
+        if (!encodedSignature || !publicKey || !messageFE) {
+            return res.status(400).json({ error: "Missing signature or publicKey or message" });
+        }
+        const decodedSignature = bs58_1.default.decode(encodedSignature);
+        console.log("decodedSignature", decodedSignature);
+        const messagePrefix = `Sign into Gigster\nWallet: ${publicKey === null || publicKey === void 0 ? void 0 : publicKey.toString()}\nTimestamp: `;
+        if (!messageFE.startsWith(messagePrefix)) {
+            return res.status(400).json({ error: "Invalid message format" });
+        }
+        const timestampStr = messageFE.replace(messagePrefix, "").trim();
+        console.log("Extracted Timestamp:", timestampStr);
+        const [datePart, timePart] = timestampStr.split("_");
+        const [day, month, year] = datePart.split("-").map(Number);
+        const [hours, minutes, seconds] = timePart.split("-").map(Number);
+        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        console.log("Parsed Timestamp (ms):", timestamp);
+        if (isNaN(timestamp)) {
+            return res.status(400).json({ error: "Invalid timestamp format" });
+        }
+        const now = Date.now();
+        console.log("Current Time (ms):", now);
+        if (Math.abs(now - timestamp) > config_1.ALLOWED_TIME_DIFF) {
+            return res.status(401).json({ error: "Timestamp expired" });
+        }
+        const verified = tweetnacl_1.default.sign.detached.verify(new TextEncoder().encode(messageFE), decodedSignature, new web3_js_1.PublicKey(publicKey).toBytes());
+        if (!verified) {
+            return res.status(401).json({
+                message: "Incorrect signature"
+            });
+        }
         const existingWorker = yield prisma.worker.findFirst({
             where: {
-                address: hardcodedWalletAddress
+                address: publicKey
             }
         });
         if (existingWorker) {
@@ -46,7 +119,7 @@ function workerRouter(io) {
         else {
             const worker = yield prisma.worker.create({
                 data: {
-                    address: hardcodedWalletAddress,
+                    address: publicKey,
                     pending_amount: 0,
                     locked_amount: 0
                 }
@@ -154,63 +227,103 @@ function workerRouter(io) {
     router.get("/payout", middleware_1.workerAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
         // @ts-ignore
         const userid = req.userId;
+        console.log("going to pay: ", userid);
         try {
-            const pending_amount = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
-                yield tx.worker.update({
-                    where: {
-                        id: Number(userid)
-                    },
-                    data: {},
-                    select: {
-                        pending_amount: true
-                    }
-                });
-                const worker = yield tx.worker.findFirst({
-                    where: {
-                        id: Number(userid)
-                    },
-                    select: {
-                        pending_amount: true
-                    }
-                });
-                if (!worker) {
+            const payoutData = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
+                const worker = yield tx.$queryRaw `
+                    SELECT * FROM "Worker"
+                    WHERE "id" = ${Number(userid)}
+                    FOR UPDATE;
+                `;
+                // const worker = await tx.worker.findUnique({
+                //     where: { id: Number(userid) },
+                //     select: { pending_amount: true, address: true },
+                // });
+                console.log("got worker: ", worker[0]);
+                if (!worker[0])
                     throw new Error("User not found.");
-                }
-                if (worker.pending_amount <= 0) {
+                // @ts-ignore
+                if (worker.pending_amount <= 0)
                     throw new Error("No pending balance to process.");
+                const existingPayout = yield tx.payouts.findFirst({
+                    where: { worker_id: Number(userid),
+                        status: "Processing"
+                    },
+                });
+                if (existingPayout) {
+                    console.log("Existing payout in progress. Checking transaction status...: ", existingPayout);
+                    return { message: "Payout already in progress", amount: 0 };
+                }
+                console.log("no previous pending payouts");
+                console.log("attempting to create payout log...");
+                let payoutLog;
+                try {
+                    payoutLog = yield tx.payouts.create({
+                        data: {
+                            worker_id: Number(userid),
+                            // @ts-ignore
+                            amount: worker[0].pending_amount,
+                            status: "Processing",
+                        },
+                    });
+                    console.log("created payout log:", payoutLog);
+                }
+                catch (error) {
+                    console.error("failed to create payout log:", error);
+                    throw new Error("Database error: Unable to create payout log.");
+                }
+                let signature;
+                try {
+                    const transaction = new web3_js_1.Transaction().add(web3_js_1.SystemProgram.transfer({
+                        fromPubkey: new web3_js_1.PublicKey(config_1.PARENT_WALLET_ADDRESS),
+                        // @ts-ignore
+                        toPubkey: new web3_js_1.PublicKey(worker[0].address),
+                        // @ts-ignore
+                        lamports: worker[0].pending_amount,
+                    }));
+                    const keyPair = web3_js_1.Keypair.fromSecretKey((0, bs58_1.decode)(config_1.PARENT_WALLET_KEY));
+                    signature = yield (0, web3_js_1.sendAndConfirmTransaction)(connection, transaction, [keyPair]);
+                    console.log("signature is: ", signature);
+                    yield tx.payouts.update({
+                        where: { id: payoutLog.id },
+                        data: { signature },
+                    });
+                    console.log("updated the log with signature");
+                }
+                catch (error) {
+                    console.error("Transaction failed:", error);
+                    yield tx.payouts.update({
+                        where: { id: payoutLog.id },
+                        data: { status: client_2.TxnStatus.Failure },
+                    });
+                    throw new Error("Transaction failed.");
                 }
                 yield tx.worker.update({
-                    where: {
-                        id: Number(userid)
+                    where: { id: Number(userid) },
+                    data: {
+                        // @ts-ignore
+                        pending_amount: { decrement: worker[0].pending_amount },
                     },
-                    data: {
-                        pending_amount: {
-                            decrement: worker.pending_amount
-                        },
-                        locked_amount: {
-                            increment: worker.pending_amount
-                        }
-                    }
                 });
-                yield tx.payouts.create({
-                    data: {
-                        user_id: Number(userid),
-                        amount: worker.pending_amount,
-                        status: "Processing",
-                        signature: "signature"
-                    }
+                console.log("updated the worker's pending amount");
+                console.log("Payout Log ID:", payoutLog.id);
+                yield tx.payouts.update({
+                    where: { id: payoutLog.id },
+                    data: { status: "Success" },
                 });
-                return worker.pending_amount;
-            }));
-            res.json({
-                message: "Processing payout.",
-                amount: pending_amount
+                console.log("updated the log with success state");
+                // @ts-ignore
+                return { message: "Payout successful", amount: worker[0].pending_amount / config_1.TOTAL_DECIMALS };
+            }), {
+                maxWait: 5000, // Max wait time for acquiring the lock (in ms)
+                timeout: 10000, // Timeout for the entire transaction (in ms)
             });
+            console.log(payoutData);
+            res.json(payoutData);
         }
         catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Something went wrong.";
             res.status(400).json({
-                message: errorMessage
+                message: error || "Something went wrong."
             });
         }
     }));

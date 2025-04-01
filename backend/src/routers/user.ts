@@ -1,9 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { JWT_SECRET, TOTAL_DECIMALS, PARENT_WALLET_ADDRESS } from "../config";
+import { JWT_SECRET, TOTAL_DECIMALS, PARENT_WALLET_ADDRESS, DEFAULT_TITLE, ALLOWED_TIME_DIFF } from "../config";
 import { userAuthMiddleware } from "../middleware";
 import { createTaskInput } from "../types";
 import nacl from "tweetnacl";
@@ -23,8 +23,7 @@ export default function userRouter(io) {
         region: "us-east-1"
     });
     const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-    const DEFAULT_TITLE = "Select the most clickable thumbnail";
-    const ALLOWED_TIME_DIFF = 5 * 60 * 1000;
+   
 
     // signin with wallet
     // @ts-ignore
@@ -352,8 +351,6 @@ export default function userRouter(io) {
         }
 
         let response = await prisma.$transaction(async tx => {
-
-            
 
             const taskResponse = await tx.task.create({
                 data: {

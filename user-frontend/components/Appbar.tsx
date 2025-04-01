@@ -10,12 +10,12 @@ import bs58 from "bs58";
 export const Appbar = ( ) => {
 
     const { publicKey, connected, signMessage, disconnect } = useWallet();
-    const { isSignedin, setIsSignedIn } = useAuth();
+    const { isSignedIn, setIsSignedIn } = useAuth();
     const [prevPK, setPrevPK] = useState<string | null>(null);
 
     const signAndSend = async () => {
 
-        if (isSignedin) {
+        if (isSignedIn) {
             console.log("User already signed in");
             return;
         }
@@ -83,11 +83,11 @@ export const Appbar = ( ) => {
         console.log("useEffect1")
         const token = localStorage.getItem("token");
 
-        if (!token && !isSignedin && connected) {  
+        if (!token && !isSignedIn && connected) {  
             console.log("1")
             signAndSend();
         }
-    }, [isSignedin, connected]); 
+    }, [isSignedIn, connected]); 
 
     useEffect(() => {
         console.log("useEffect2")

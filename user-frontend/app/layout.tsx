@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gigster",
+  title: "Gigster (client)",
   description: "A powerful Solana-based GIGs application.",
 };
 

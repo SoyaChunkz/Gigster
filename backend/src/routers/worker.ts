@@ -1,27 +1,87 @@
 import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import { TOTAL_DECIMALS, WORKER_JWT_SECRET } from "../config";
+import { TOTAL_DECIMALS, WORKER_JWT_SECRET, ALLOWED_TIME_DIFF, PARENT_WALLET_ADDRESS, PARENT_WALLET_KEY } from "../config";
 import { getNextTask } from "../db";
 import { workerAuthMiddleware } from "../middleware";
 import { createSubmissionInput } from "../types";
+import nacl from "tweetnacl";
+import { PublicKey, Connection, clusterApiUrl, SystemProgram, Transaction, Keypair, sendAndConfirmTransaction } from "@solana/web3.js";
+import bs58, { decode } from "bs58";
+import { TxnStatus } from "@prisma/client";
 
 const TOTAL_SUBMISSIONS: number = 100;
+
+
+// TODO: locked_amount field is unused, either use it or use raw query to avoid double spending by locking table
 
 // @ts-ignore
 export default function workerRouter(io) {
     const router = Router();
-    const prisma = new PrismaClient();
+    const prisma = new PrismaClient({  
+        //log: ['query', 'info', 'warn', 'error'], 
+    });
+    
+    const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+    
 
     // @ts-ignore
     router.post("/signin", async (req, res) => {
 
-        // 8rhZMcFGQRysR6Rh5bAsKELmjSQpJVhuSVg1HVp1N36h
-        const hardcodedWalletAddress = "8rhZMcFGQRysR6Rh5bAsKELmjSQpJVhuSVg1HVp1N36hfdbbffd";
+        const { publicKey, encodedSignature, messageFE } = req.body;
+        console.log("Received PublicKey:", publicKey);
+        console.log("Received encodedSignature:", encodedSignature);
+        console.log("Received message:", messageFE);
+
+        if (!encodedSignature || !publicKey || !messageFE) {
+            return res.status(400).json({ error: "Missing signature or publicKey or message" });
+        }
+
+        const decodedSignature = bs58.decode(encodedSignature);
+        console.log("decodedSignature", decodedSignature);
+
+        
+        const messagePrefix = `Sign into Gigster\nWallet: ${publicKey?.toString()}\nTimestamp: `;
+        if (!messageFE.startsWith(messagePrefix)) {
+            return res.status(400).json({ error: "Invalid message format" });
+        }
+
+        const timestampStr = messageFE.replace(messagePrefix, "").trim();
+        console.log("Extracted Timestamp:", timestampStr);
+
+        const [datePart, timePart] = timestampStr.split("_");
+        const [day, month, year] = datePart.split("-").map(Number);
+        const [hours, minutes, seconds] = timePart.split("-").map(Number);
+
+        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        console.log("Parsed Timestamp (ms):", timestamp);
+
+        if (isNaN(timestamp)) {
+            return res.status(400).json({ error: "Invalid timestamp format" });
+        }
+
+        const now = Date.now();
+        console.log("Current Time (ms):", now);
+
+        if (Math.abs(now - timestamp) > ALLOWED_TIME_DIFF) {
+            return res.status(401).json({ error: "Timestamp expired" });
+        }
+
+        const verified = nacl.sign.detached.verify(
+            new TextEncoder().encode(messageFE),
+            decodedSignature,
+            new PublicKey(publicKey).toBytes(),
+        );
+
+        if (!verified) {
+            return res.status(401).json({
+                message: "Incorrect signature"
+            })
+        }
 
         const existingWorker = await prisma.worker.findFirst({
             where: {
-                address: hardcodedWalletAddress
+                address: publicKey
             }
         });
 
@@ -39,7 +99,7 @@ export default function workerRouter(io) {
 
             const worker = await prisma.worker.create({
                 data: {
-                    address: hardcodedWalletAddress,
+                    address: publicKey,
                     pending_amount: 0,
                     locked_amount: 0
                 }
@@ -169,78 +229,130 @@ export default function workerRouter(io) {
     router.get("/payout", workerAuthMiddleware, async (req, res) => {
 
         // @ts-ignore
-        const userid: string = req.userId;
-
+        const userid: string = req.userId; 
+        console.log("going to pay: ", userid);
+    
         try {
+            const payoutData = await prisma.$transaction(async (tx) => {
 
-            const pending_amount = await prisma.$transaction(async tx => {
+                const worker: [1] = await tx.$queryRaw`
+                    SELECT * FROM "Worker"
+                    WHERE "id" = ${Number(userid)}
+                    FOR UPDATE;
+                `
 
-                await tx.worker.update({
-                    where: {
-                        id: Number(userid)
+                // const worker = await tx.worker.findUnique({
+                //     where: { id: Number(userid) },
+                //     select: { pending_amount: true, address: true },
+                // });
+
+                console.log("got worker: ", worker[0]);
+    
+                if (!worker[0]) throw new Error("User not found.");
+                // @ts-ignore
+                if (worker.pending_amount <= 0) throw new Error("No pending balance to process.");
+    
+                const existingPayout = await tx.payouts.findFirst({
+                    where: { worker_id: Number(userid), 
+                        status: "Processing" 
                     },
-                    data: {},
-                    select: {
-                        pending_amount: true
-                    }
                 });
-
-                const worker = await tx.worker.findFirst({
-                    where: {
-                        id: Number(userid)
-                    },
-                    select: {
-                        pending_amount: true
-                    }
-                })
-
-                if (!worker) {
-                    throw new Error("User not found.");
+    
+                if (existingPayout) {
+                    console.log("Existing payout in progress. Checking transaction status...: ", existingPayout);
+                    return { message: "Payout already in progress", amount: 0 };
                 }
 
-                if (worker.pending_amount <= 0) {
-                    throw new Error("No pending balance to process.");
-                }
-
-                await tx.worker.update({
-                    where: {
-                        id: Number(userid)
-                    },
-                    data: {
-                        pending_amount: {
-                            decrement: worker.pending_amount
+                console.log("no previous pending payouts")
+    
+                console.log("attempting to create payout log..."); 
+                let payoutLog;
+                try {
+                    payoutLog = await tx.payouts.create({
+                        data: {
+                            worker_id: Number(userid),
+                            // @ts-ignore
+                            amount: worker[0].pending_amount,
+                            status: "Processing",
                         },
-                        locked_amount: {
-                            increment: worker.pending_amount
-                        }
-                    }
-                });
+                    });
+                    console.log("created payout log:", payoutLog);
+                } catch (error) {
+                    console.error("failed to create payout log:", error);
+                    throw new Error("Database error: Unable to create payout log.");
+                }
+    
+                let signature;
+                try {
+                    const transaction = new Transaction().add(
+                        SystemProgram.transfer({
+                            fromPubkey: new PublicKey(PARENT_WALLET_ADDRESS),
+                            // @ts-ignore
+                            toPubkey: new PublicKey(worker[0].address),
+                            // @ts-ignore
+                            lamports: worker[0].pending_amount,
+                        })
+                    );
+    
+                    const keyPair = Keypair.fromSecretKey(decode(PARENT_WALLET_KEY));
+    
+                    signature = await sendAndConfirmTransaction(connection, transaction, [keyPair]);
+    
+                    console.log("signature is: ", signature)
+                    await tx.payouts.update({
+                        where: { id: payoutLog.id },
+                        data: { signature },
+                    });
+                    console.log("updated the log with signature")
 
-
-                await tx.payouts.create({
+    
+                } catch (error) {
+                    console.error("Transaction failed:", error);
+    
+                    await tx.payouts.update({
+                        where: { id: payoutLog.id },
+                        data: { status: TxnStatus.Failure },
+                    });
+    
+                    throw new Error("Transaction failed.");
+                }
+    
+                await tx.worker.update({
+                    where: { id: Number(userid) },
                     data: {
-                        user_id: Number(userid),
-                        amount: worker.pending_amount,
-                        status: "Processing",
-                        signature: "signature"
-                    }
+                        // @ts-ignore
+                        pending_amount: { decrement: worker[0].pending_amount },
+                    },
                 });
 
-                return worker.pending_amount;
-            });
+                console.log("updated the worker's pending amount")
+    
+                console.log("Payout Log ID:", payoutLog.id);
 
-            res.json({
-                message: "Processing payout.",
-                amount: pending_amount
-            });
+                await tx.payouts.update({
+                    where: { id: payoutLog.id },
+                    data: { status: "Success" },
+                });
+    
+                console.log("updated the log with success state")
 
+                // @ts-ignore
+                return { message: "Payout successful", amount: worker[0].pending_amount / TOTAL_DECIMALS };
+            }, {
+                maxWait: 5000, // Max wait time for acquiring the lock (in ms)
+                timeout: 10000, // Timeout for the entire transaction (in ms)
+            });
+    
+            console.log(payoutData)
+            res.json(payoutData);
+    
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Something went wrong.";
-            res.status(400).json({
-                message: errorMessage
+            res.status(400).json({ 
+                message: error || "Something went wrong." 
             });
         }
     });
+    
 
     return router;
 }
