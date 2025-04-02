@@ -262,7 +262,7 @@ export default function userRouter(io) {
 
             if (!txnStore) {
                 return res.status(404).json({
-                    error: "No unused transaction found" 
+                    message: "No unused transaction found" 
                 });
             }
 
@@ -463,8 +463,11 @@ export default function userRouter(io) {
                     user_id: Number(userId)
                 },
                 select: {
+                    id: true,
+                    title: true,
                     options: true,
-                    submissions: true
+                    submissions: true,
+                    done: true
                 }
             });
 
@@ -473,6 +476,8 @@ export default function userRouter(io) {
                     message: "No tasks for yet."
                 });
             }
+
+            console.log(tasks)
 
             return res.json({
                 tasks

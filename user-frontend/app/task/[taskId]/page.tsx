@@ -76,12 +76,14 @@ export default function TaskPage() {
             {/* Display Options */}
             <div className="flex flex-wrap justify-center gap-6 mt-6">
                 {task.options.map((opt: any) => (
-                    <div key={opt.id} className="border p-4 rounded-lg shadow-lg bg-gray-100">
-                        <img
-                            src={opt.image_url}
-                            alt={`Option ${opt.id}`}
-                            className="w-32 h-32 object-cover rounded-lg"
-                        />
+                    <div key={opt.id} className="border p-4 rounded-lg shadow-lg bg-gray-100 flex flex-col items-center">
+                        <div className="w-48 h-48 flex items-center justify-center bg-white">
+                            <img
+                                src={opt.image_url}
+                                alt={`Option ${opt.id}`}
+                                className="max-w-full max-h-full object-contain rounded-lg"
+                            />
+                        </div>
                         <p className="mt-2 text-center font-semibold text-gray-800">Votes: {result?.[opt.id]?.count || 0}</p>
                     </div>
                 ))}
