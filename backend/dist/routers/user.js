@@ -161,7 +161,7 @@ function userRouter(io) {
             console.log("storing new txn");
             //@ts-ignore
             const userId = req.userId;
-            const { signature } = req.body;
+            const { signature, amountInLamports } = req.body;
             const user = yield prisma.user.findFirst({
                 where: {
                     id: userId
@@ -180,7 +180,8 @@ function userRouter(io) {
                 data: {
                     signature,
                     user_id: userId,
-                    used: false
+                    used: false,
+                    amount: amountInLamports
                 }
             });
             return res.json({
@@ -196,6 +197,11 @@ function userRouter(io) {
     router.get("/getTxn", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             console.log("getting  txn");
+            const amountInLamports = req.query.amountInLamports;
+            console.log(amountInLamports);
+            if (!amountInLamports) {
+                return res.status(400).json({ error: "Amount is required" });
+            }
             //@ts-ignore
             const userId = req.userId;
             const user = yield prisma.user.findFirst({
@@ -209,7 +215,8 @@ function userRouter(io) {
             const txnStore = yield prisma.txnStore.findFirst({
                 where: {
                     user_id: userId,
-                    used: false
+                    used: false,
+                    amount: { gte: Number(amountInLamports) }
                 },
                 orderBy: {
                     id: "asc"
@@ -218,6 +225,16 @@ function userRouter(io) {
             if (!txnStore) {
                 return res.status(404).json({
                     message: "No unused transaction found"
+                });
+            }
+            const txnSignature = txnStore.signature;
+            const txnAmount = txnStore.amount;
+            const remainingAmount = txnAmount - Number(amountInLamports);
+            if (remainingAmount > 0) {
+                return res.json({
+                    signature: txnSignature,
+                    used: txnStore.used,
+                    remainingAmount
                 });
             }
             return res.json({
@@ -230,6 +247,7 @@ function userRouter(io) {
             return res.status(500).json({ error: "Internal Server Error" });
         }
     }));
+    // TODO: what if there is more unused amt in txnStore than the actual task's amt, update the logic here 
     // @ts-ignore
     router.post("/task", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h;
@@ -251,14 +269,30 @@ function userRouter(io) {
             }
         });
         console.log("parsed body: ", parsedData);
-        // const transaction = await connection.getTransaction(parsedData.data.signature, {
-        //     maxSupportedTransactionVersion: 1
-        // });
-        const transactionDetails = yield connection.getParsedTransaction(parsedData.data.signature, "confirmed");
+        const txnStore = yield prisma.txnStore.findFirst({
+            where: {
+                user_id: userId,
+                used: false,
+                amount: { gte: Number(parsedData.data.amount) }
+            },
+            orderBy: {
+                id: "asc"
+            }
+        });
+        if (!txnStore) {
+            return res.status(404).json({
+                message: "No unused transaction found"
+            });
+        }
+        const txnSignature = txnStore.signature;
+        const txnAmount = txnStore.amount;
+        const taskAmount = parsedData.data.amount;
+        const remainingAmount = txnAmount - taskAmount;
+        const transactionDetails = yield connection.getParsedTransaction(txnSignature, "confirmed");
         console.log("txn: ", transactionDetails);
         if (!transactionDetails)
             return res.status(411).json({
-                message: "You've sent the wrong Txn signature."
+                message: "Invalid transaction signature."
             });
         const transferInstruction = transactionDetails.transaction.message.instructions.find((instr) => instr.programId.toString() === web3_js_1.SystemProgram.programId.toString());
         if (!transferInstruction)
@@ -266,7 +300,8 @@ function userRouter(io) {
                 message: "Transaction does not contain a SOL transfer."
             });
         console.log("instruction", transferInstruction, "\n", web3_js_1.SystemProgram.programId.toString());
-        if (((_b = (_a = transactionDetails.meta) === null || _a === void 0 ? void 0 : _a.postBalances[1]) !== null && _b !== void 0 ? _b : 0) - ((_d = (_c = transactionDetails === null || transactionDetails === void 0 ? void 0 : transactionDetails.meta) === null || _c === void 0 ? void 0 : _c.preBalances[1]) !== null && _d !== void 0 ? _d : 0) !== 100000000) {
+        const transferredAmount = ((_b = (_a = transactionDetails.meta) === null || _a === void 0 ? void 0 : _a.postBalances[1]) !== null && _b !== void 0 ? _b : 0) - ((_d = (_c = transactionDetails === null || transactionDetails === void 0 ? void 0 : transactionDetails.meta) === null || _c === void 0 ? void 0 : _c.preBalances[1]) !== null && _d !== void 0 ? _d : 0);
+        if (transferredAmount < taskAmount) {
             return res.status(411).json({
                 message: "Transaction signature/amount incorrect."
             });
@@ -288,9 +323,10 @@ function userRouter(io) {
             const taskResponse = yield tx.task.create({
                 data: {
                     title: (_a = parsedData.data.title) !== null && _a !== void 0 ? _a : config_1.DEFAULT_TITLE,
-                    amount: 0.1 * config_1.TOTAL_DECIMALS,
                     signature: parsedData.data.signature,
-                    user_id: (user === null || user === void 0 ? void 0 : user.id) || userId
+                    amount: parsedData.data.amount,
+                    user_id: (user === null || user === void 0 ? void 0 : user.id) || userId,
+                    contributors: parsedData.data.contributors
                 }
             });
             yield tx.option.createMany({
@@ -300,15 +336,19 @@ function userRouter(io) {
                 }))
             });
             yield tx.txnStore.update({
-                where: {
-                    signature: parsedData.data.signature,
-                    used: false
-                },
-                data: {
-                    used: true,
-                    task_id: taskResponse.id
-                }
+                where: { id: txnStore.id },
+                data: { used: true, amount: taskAmount, task_id: taskResponse.id }
             });
+            if (remainingAmount > 0) {
+                yield tx.txnStore.create({
+                    data: {
+                        signature: txnSignature,
+                        amount: remainingAmount,
+                        user_id: userId,
+                        used: false
+                    }
+                });
+            }
             return taskResponse;
         }));
         io.emit("newTaskCreated", {
@@ -385,7 +425,7 @@ function userRouter(io) {
                     message: "No tasks for yet."
                 });
             }
-            console.log(tasks);
+            // console.log(tasks)
             return res.json({
                 tasks
             });

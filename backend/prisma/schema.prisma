@@ -36,6 +36,7 @@ model Task {
   user_id      Int
   signature    String
   amount       Int
+  contributors Int       @default(10)
   done         Boolean @default(false)
   user         User    @relation(fields: [user_id], references: [id])
   submissions  Submission[]
@@ -52,9 +53,10 @@ model Option {
 
 model TxnStore {
   id          Int        @id @default(autoincrement())
+  amount      Int        @default(10000000)
   task_id     Int?       @unique
   task        Task?      @relation(fields: [task_id], references: [id])
-  signature   String     @unique
+  signature   String     
   user_id     Int
   user        User       @relation(fields: [user_id], references: [id])
   used        Boolean    @default(false)

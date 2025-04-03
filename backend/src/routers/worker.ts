@@ -13,8 +13,6 @@ import { TxnStatus } from "@prisma/client";
 const TOTAL_SUBMISSIONS: number = 100;
 
 
-// TODO: locked_amount field is unused, either use it or use raw query to avoid double spending by locking table
-
 // @ts-ignore
 export default function workerRouter(io) {
     const router = Router();

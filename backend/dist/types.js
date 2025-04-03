@@ -10,7 +10,9 @@ exports.createTaskInput = zod_1.default.object({
         fileUrl: zod_1.default.string()
     })).min(2),
     title: zod_1.default.string().optional(),
-    signature: zod_1.default.string()
+    signature: zod_1.default.string(),
+    amount: zod_1.default.number(),
+    contributors: zod_1.default.number()
 });
 exports.createSubmissionInput = zod_1.default.object({
     taskId: zod_1.default.number(),

@@ -6,7 +6,9 @@ export const createTaskInput = z.object({
         fileUrl: z.string()
     })).min(2),
     title: z.string().optional(),
-    signature: z.string()
+    signature: z.string(),
+    amount: z.number(),
+    contributors: z.number()
 });
 
 export const createSubmissionInput = z.object({

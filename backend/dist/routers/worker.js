@@ -58,7 +58,6 @@ const web3_js_1 = require("@solana/web3.js");
 const bs58_1 = __importStar(require("bs58"));
 const client_2 = require("@prisma/client");
 const TOTAL_SUBMISSIONS = 100;
-// TODO: locked_amount field is unused, either use it or use raw query to avoid double spending by locking table
 // @ts-ignore
 function workerRouter(io) {
     const router = (0, express_1.Router)();

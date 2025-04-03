@@ -10,6 +10,7 @@ import nacl from "tweetnacl";
 import { PublicKey, Connection, clusterApiUrl, SystemProgram } from "@solana/web3.js";
 import bs58 from "bs58";
 
+
 // @ts-ignore
 export default function userRouter(io) {
 
@@ -193,7 +194,7 @@ export default function userRouter(io) {
             //@ts-ignore
             const userId = req.userId
 
-            const { signature } = req.body;
+            const { signature, amountInLamports } = req.body;
 
             const user = await prisma.user.findFirst({
                 where: {
@@ -217,7 +218,8 @@ export default function userRouter(io) {
                 data: {
                     signature,
                     user_id: userId,
-                    used: false
+                    used: false,
+                    amount: amountInLamports
                 }
             });
 
@@ -236,7 +238,14 @@ export default function userRouter(io) {
 
         try {
             console.log("getting  txn")
+            
+            const amountInLamports  = req.query.amountInLamports;
+            console.log(amountInLamports)
+            if (!amountInLamports) {
+                return res.status(400).json({ error: "Amount is required" });
+            }
 
+            
             //@ts-ignore
             const userId = req.userId
             
@@ -253,7 +262,8 @@ export default function userRouter(io) {
             const txnStore = await prisma.txnStore.findFirst({
                 where: {
                     user_id: userId,
-                    used: false
+                    used: false,
+                    amount: { gte: Number(amountInLamports) }
                 },
                 orderBy: {
                     id : "asc"
@@ -263,6 +273,19 @@ export default function userRouter(io) {
             if (!txnStore) {
                 return res.status(404).json({
                     message: "No unused transaction found" 
+                });
+            }
+
+            const txnSignature = txnStore.signature;
+            const txnAmount = txnStore.amount;
+            const remainingAmount = txnAmount - Number(amountInLamports);
+
+            if (remainingAmount > 0) {
+            
+                return res.json({
+                    signature: txnSignature,
+                    used: txnStore.used,
+                    remainingAmount
                 });
             }
 
@@ -276,6 +299,7 @@ export default function userRouter(io) {
         }
     });
 
+// TODO: what if there is more unused amt in txnStore than the actual task's amt, update the logic here 
     // @ts-ignore
     router.post("/task", userAuthMiddleware, async (req, res) => {
 
@@ -304,31 +328,52 @@ export default function userRouter(io) {
 
         console.log("parsed body: ", parsedData)
 
-        // const transaction = await connection.getTransaction(parsedData.data.signature, {
-        //     maxSupportedTransactionVersion: 1
-        // });
+        const txnStore = await prisma.txnStore.findFirst({
+            where: {
+                user_id: userId,
+                used: false,
+                amount: { gte: Number(parsedData.data.amount) }
+            },
+            orderBy: {
+                id : "asc"
+            }
+        });
 
-        const transactionDetails = await connection.getParsedTransaction(parsedData.data.signature, "confirmed");
+        if (!txnStore) {
+            return res.status(404).json({
+                message: "No unused transaction found" 
+            });
+        }
+
+        const txnSignature = txnStore.signature;
+        const txnAmount = txnStore.amount;
+        const taskAmount = parsedData.data.amount;
+        const remainingAmount = txnAmount - taskAmount;
+
+    
+        const transactionDetails = await connection.getParsedTransaction(txnSignature, "confirmed");
 
         console.log("txn: ", transactionDetails)
 
-        if (!transactionDetails) 
+        if (!transactionDetails)
             return res.status(411).json({
-                message: "You've sent the wrong Txn signature."
+                message: "Invalid transaction signature."
             });
 
         const transferInstruction = transactionDetails.transaction.message.instructions.find(
             (instr) => instr.programId.toString() === SystemProgram.programId.toString()
         );
 
-        if (!transferInstruction) 
-            return res.status(411).json({ 
+        if (!transferInstruction)
+            return res.status(411).json({
                 message: "Transaction does not contain a SOL transfer."
             });
 
         console.log("instruction", transferInstruction, "\n", SystemProgram.programId.toString());
 
-        if ((transactionDetails.meta?.postBalances[1] ?? 0) - (transactionDetails?.meta?.preBalances[1] ?? 0) !== 100000000) {
+        const transferredAmount = (transactionDetails.meta?.postBalances[1] ?? 0) - (transactionDetails?.meta?.preBalances[1] ?? 0);
+
+        if (transferredAmount < taskAmount) {
             return res.status(411).json({
                 message: "Transaction signature/amount incorrect."
             });
@@ -344,7 +389,7 @@ export default function userRouter(io) {
 
         console.log("from address in txn: ", transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString());
 
-        if (transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString()  !== user?.address) {
+        if (transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString() !== user?.address) {
             return res.status(411).json({
                 message: "Transaction sent from wrong address"
             })
@@ -355,9 +400,10 @@ export default function userRouter(io) {
             const taskResponse = await tx.task.create({
                 data: {
                     title: parsedData.data.title ?? DEFAULT_TITLE,
-                    amount: 0.1 * TOTAL_DECIMALS,
                     signature: parsedData.data.signature,
-                    user_id: user?.id || userId
+                    amount: parsedData.data.amount,
+                    user_id: user?.id || userId,
+                    contributors: parsedData.data.contributors
                 }
             });
 
@@ -369,15 +415,20 @@ export default function userRouter(io) {
             });
 
             await tx.txnStore.update({
-                where: {
-                    signature: parsedData.data.signature,
-                    used: false
-                },  
-                data: {
-                    used: true,
-                    task_id: taskResponse.id
-                } 
+                where: { id: txnStore.id },
+                data: { used: true, amount: taskAmount, task_id: taskResponse.id }
             });
+
+            if (remainingAmount > 0) {
+                await tx.txnStore.create({
+                    data: {
+                        signature: txnSignature,
+                        amount: remainingAmount,
+                        user_id: userId,
+                        used: false
+                    }
+                });
+            }
 
             return taskResponse;
         });
@@ -477,7 +528,7 @@ export default function userRouter(io) {
                 });
             }
 
-            console.log(tasks)
+            // console.log(tasks)
 
             return res.json({
                 tasks

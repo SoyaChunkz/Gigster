@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { UploadImage } from "./UploadImage";
-import { USER_BACKEND_URL, CLOUDFRONT_URL } from "@/utils";
+import { USER_BACKEND_URL, CLOUDFRONT_URL, TOTAL_DECIMALS } from "@/utils";
 import { FaTimes  } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
@@ -11,7 +11,10 @@ import { useWallet, useConnection  } from "@solana/wallet-adapter-react";
 export const Upload = () => {
     const [images, setImages] = useState<string[]>([]);
     const [title, setTitle] = useState<string>("");
+    const [amount, setAmount] = useState<number>(0.01);
+    const [contributors, setContributors] = useState<number>(5);
     const [txSignature, setTxSignature] = useState<string>("");
+    const [remainingAmount, setRemainingAmount] = useState<number>();
     const [loading, setLoading] = useState<boolean>(false);
     const { publicKey, sendTransaction } = useWallet();
     const { connection } = useConnection();
@@ -23,21 +26,28 @@ export const Upload = () => {
 
     const fetchTxn = async () => {
         try {
-            const response: any = await axios.get(`${USER_BACKEND_URL}/getTxn`, {
+            const amountInLamports = amount * TOTAL_DECIMALS;
+            const response: any = await axios.get(`${USER_BACKEND_URL}/getTxn/?amountInLamports=${amountInLamports}`, {
                     headers: {
                         "Authorization": `Bearer ${localStorage.getItem("token")}`
                     }
                 }
             );
 
-            if (response.data.signature) {
+            if (response.data) {
                 setTxSignature(response.data.signature);
+                if (response.data.remainingAmount) {
+                    setRemainingAmount(response.data.remainingAmount);
+                } else {
+                    setRemainingAmount(0); 
+                }
                 return response.data.signature;
             } 
         } catch (error) {
             console.error("Error fetching txn:", error);
         }
     }
+
     const onSubmit = async () => {
 
         try {
@@ -49,6 +59,23 @@ export const Upload = () => {
                 toast.error("No transaction found! Please make a payment first.");
                 return;
             }
+
+            const amountInLamports = amount * TOTAL_DECIMALS;
+
+            if (amountInLamports < 10_000_000 || amountInLamports > 500_000_000) { 
+                toast.error("Amount must be between 0.01 and 0.5 SOL.");
+                return;
+            }
+    
+            if (contributors < 5 || contributors > 100) {
+                toast.error("Contributors must be between 5 and 100.");
+                return;
+            }
+
+            if (remainingAmount && remainingAmount > amount) {
+                const message = `Please Note, there is a balance of ${remainingAmount / TOTAL_DECIMALS} with us. Difference will be still stored.`
+                toast.success(message);
+            }
             
             const response: any = await axios.post(
                 `${USER_BACKEND_URL}/task`,
@@ -57,7 +84,9 @@ export const Upload = () => {
                         fileUrl: image,
                     })),
                     title: title || "Select the most clickable thumbnail",
-                    signature
+                    signature,
+                    amount: amountInLamports,
+                    contributors
                 }, {
                     headers: {
                         "Authorization": `Bearer ${localStorage.getItem("token")}`
@@ -65,10 +94,10 @@ export const Upload = () => {
                 }
             );
 
-            window.open(`/task/${response.data.id}`, "_blank");
             setImages([]);
             setTxSignature("");
             setTitle("");
+            window.open(`/task/${response.data.id}`, "_blank");
             toast.success("Task created successfully!");
         } catch (error) {
             console.error("Error submitting task:", error);
@@ -116,12 +145,14 @@ export const Upload = () => {
                 return;
             }
             setLoading(true);
+
+            const amountInLamports = amount * TOTAL_DECIMALS;
+
             const transaction = new Transaction().add(
                 SystemProgram.transfer({
                     fromPubkey: publicKey!,
                     toPubkey: new PublicKey("E5NpEGWMaqdbB91QbKq5CWHwtDfV1caxQeTAQAGPqeHy"),
-                    lamports: 100000000
-    
+                    lamports: amountInLamports
                 })
             );
             
@@ -147,7 +178,8 @@ export const Upload = () => {
             const response: any = await axios.post(
                 `${USER_BACKEND_URL}/storeTxn`,
                 {
-                    signature
+                    signature,
+                    amountInLamports
                 }, {
                     headers: {
                         "Authorization": `Bearer ${localStorage.getItem("token")}`
@@ -157,7 +189,7 @@ export const Upload = () => {
 
             if (response.data.message === "Txn stored successfuly!") {
                 setTxSignature(signature);
-                toast.success("Payment of 0.1 SOL successful! \nKindly submit your task.")
+                toast.success(`Payment of ${amount} SOL successful! \nKindly submit your task.`)
             }
         } catch (error) {
             console.error("Payment failed:", error);
@@ -181,6 +213,39 @@ export const Upload = () => {
                 className="mt-2 w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-3 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="What is your task?"
             />
+
+            {/* Amount & Contributors Section */}
+            <div className="flex flex-col sm:flex-row gap-4 mt-6">
+                {/* Amount Input */}
+                <div className="w-full">
+                    <label className="block text-md font-medium text-gray-300">Amount (SOL)</label>
+                    <input
+                        type="number"
+                        min="0.01"
+                        max="0.5"
+                        step="0.01"
+                        onChange={(e) => setAmount(parseFloat(e.target.value))}
+                        className="mt-2 w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-3 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Enter amount (0.01 - 0.5 SOL)"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Min: 0.01 SOL | Max: 0.5 SOL</p>
+                </div>
+
+                {/* Contributors Input */}
+                <div className="w-full">
+                    <label className="block text-md font-medium text-gray-300">Contributors</label>
+                    <input
+                        type="number"
+                        min="5"
+                        max="100"
+                        step="1"
+                        onChange={(e) => setContributors(parseInt(e.target.value))}
+                        className="mt-2 w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-3 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Enter contributors (5 - 100)"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Min: 5 | Max: 100</p>
+                </div>
+            </div>
 
             {/* Image Upload Section */}
             <label className="block mt-6 text-md font-medium text-gray-300">Add Images</label>
@@ -223,7 +288,7 @@ export const Upload = () => {
                             ? "Processing..."
                             : txSignature
                             ? "Submit Task"
-                            : "Pay 0.1 SOL"}
+                            : `Pay ${amount} SOL`}
                 </button>
             </div>
         </div>
