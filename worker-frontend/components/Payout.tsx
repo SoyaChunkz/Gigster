@@ -16,7 +16,7 @@ export const Payout = () => {
     const [checkingBalance, setCheckingBalance] = useState(false);
     const [withdrawing, setWithdrawing] = useState(false);
     const [pendingAmount, setPendingAmount] = useState<number | null>(null);
-    const { isSignedIn, setIsSignedIn } = useAuth();
+    const { isSignedIn } = useAuth();
 
     console.log("payout ka: ", isSignedIn)
 

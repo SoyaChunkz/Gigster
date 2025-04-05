@@ -19,30 +19,29 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 export default function TaskPage() {
     interface Option {
-        id: string;
+        id: number;
         image_url: string;
     }
-    
+
     interface Task {
         title: string;
         done: boolean;
         options: Option[];
     }
 
-    interface ResultCount {
-        count: number;
-    }
-    
     interface Result {
-        [optionId: string]: {
+        [optionId: number]: {
             count: number;
+            option: {
+                imageUrl: string;
+            }
         };
     }
 
     interface TaskResponse {
         taskDetails: Task;
         result: Result;
-    }   
+    }
 
     const { taskId } = useParams<{ taskId: string }>();
     const [task, setTask] = useState<Task | null>(null);
@@ -58,8 +57,8 @@ export default function TaskPage() {
                     "Authorization": `Bearer ${localStorage.getItem("token")}`,
                 },
             });
-            setTask(response.data.taskDetails as Task);
-            setResult(response.data.result as Result);
+            setTask(response.data.taskDetails);
+            setResult(response.data.result);
 
             console.log(response.data.taskDetails)
             console.log(response.data.result)
@@ -74,7 +73,7 @@ export default function TaskPage() {
             setShowModal(false);
             setIsClosing(false);
             setFullImageUrl(null);
-        }, 300); 
+        }, 300);
     };
 
     useEffect(() => {
@@ -199,22 +198,22 @@ export default function TaskPage() {
 
             {/* Modal */}
             {showModal && fullImageUrl && (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}>
-        <div className="relative bg-black border border-white/20 rounded-lg p-8 max-w-3xl w-[90%] max-h-[85vh] overflow-auto shadow-2xl">
-            <button
-                className="scale-110 absolute top-3 right-3 text-white text-xl hover:text-red-400"
-                onClick={closeModal}
-            >
-                &times;
-            </button>
-            <img
-                src={fullImageUrl}
-                alt="Full View"
-                className="w-full h-auto rounded-lg object-contain"
-            />
-        </div>
-    </div>
-)}
+                <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}>
+                    <div className="relative bg-black border border-white/20 rounded-lg p-8 max-w-3xl w-[90%] max-h-[85vh] overflow-auto shadow-2xl">
+                        <button
+                            className="scale-110 absolute top-3 right-3 text-white text-xl hover:text-red-400"
+                            onClick={closeModal}
+                        >
+                            &times;
+                        </button>
+                        <img
+                            src={fullImageUrl}
+                            alt="Full View"
+                            className="w-full h-auto rounded-lg object-contain"
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Animation Styles */}
             <style jsx>{`

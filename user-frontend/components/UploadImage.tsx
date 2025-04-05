@@ -57,7 +57,7 @@ export const UploadImage = ({ onImageAdded, image }:
                 // const awsResponse = await axios.post(presignedUrl, formData);
 
                 console.log("putting file on s3...")
-                const awsResponse = await axios.put(presignedUrl, file, {
+                await axios.put(presignedUrl, file, {
                     headers: {
                         "Content-Type": file.type 
                     }
