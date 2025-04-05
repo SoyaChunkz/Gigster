@@ -87,15 +87,12 @@ export const TaskView = () => {
       }
 
       setSelectedOption(null);
-    } catch (error: unknown ) {
+    } 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    catch (error: any) {
       let errorMessage = "Failed to submit task.";
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        (error as any).response?.data?.message
-      ) {
-        errorMessage = (error as any).response.data.message;
+      if (error && error.response && error.response.data?.message) {
+        errorMessage = error.response.data.message;
       }
       console.log("message: ", errorMessage);
       toast.error(errorMessage);
