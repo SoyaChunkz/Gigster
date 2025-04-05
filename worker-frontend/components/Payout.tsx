@@ -6,6 +6,13 @@ import { WORKER_BACKEND_URL } from "@/utils";
 import { useAuth } from "./AuthContext";
 
 export const Payout = () => {
+
+    interface PayoutResponse {
+        amount: number
+    }
+    interface BalanceResponse {
+        pendingAmount: number
+    }
     const [checkingBalance, setCheckingBalance] = useState(false);
     const [withdrawing, setWithdrawing] = useState(false);
     const [pendingAmount, setPendingAmount] = useState<number | null>(null);
@@ -17,7 +24,7 @@ export const Payout = () => {
         if (!isSignedIn) return;
         try {
             setCheckingBalance(true);
-            const response: any = await axios.get(`${WORKER_BACKEND_URL}/balance`, {
+            const response = await axios.get<BalanceResponse>(`${WORKER_BACKEND_URL}/balance`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
             });
 
@@ -46,7 +53,7 @@ export const Payout = () => {
             setWithdrawing(true);
             toast.loading("Processing payout...");
             
-            const response: any = await axios.get(`${WORKER_BACKEND_URL}/payout`, {
+            const response = await axios.get<PayoutResponse>(`${WORKER_BACKEND_URL}/payout`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
             });
 

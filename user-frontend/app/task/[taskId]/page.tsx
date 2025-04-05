@@ -18,23 +18,48 @@ import {
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 export default function TaskPage() {
-    const { taskId } = useParams();
-    const [task, setTask] = useState<any>(null);
-    const [result, setResult] = useState<any>(null);
+    interface Option {
+        id: string;
+        image_url: string;
+    }
+    
+    interface Task {
+        title: string;
+        done: boolean;
+        options: Option[];
+    }
+
+    interface ResultCount {
+        count: number;
+    }
+    
+    interface Result {
+        [optionId: string]: {
+            count: number;
+        };
+    }
+
+    interface TaskResponse {
+        taskDetails: Task;
+        result: Result;
+    }   
+
+    const { taskId } = useParams<{ taskId: string }>();
+    const [task, setTask] = useState<Task | null>(null);
+    const [result, setResult] = useState<Result | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [isClosing, setIsClosing] = useState(false);
-
     const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
 
     const fetchTask = async () => {
         try {
-            const response: any = await axios.get(`${USER_BACKEND_URL}/task/${taskId}`, {
+            const response = await axios.get<TaskResponse>(`${USER_BACKEND_URL}/task/${taskId}`, {
                 headers: {
                     "Authorization": `Bearer ${localStorage.getItem("token")}`,
                 },
             });
-            setTask(response.data.taskDetails);
-            setResult(response.data.result);
+            setTask(response.data.taskDetails as Task);
+            setResult(response.data.result as Result);
 
             console.log(response.data.taskDetails)
             console.log(response.data.result)
@@ -78,7 +103,7 @@ export default function TaskPage() {
     if (!task) return <p className="text-center mt-10 text-lg">Loading...</p>;
 
     const colors = ["#6B7280", "#3B82F6", "#1E40AF", "#93C5FD", "#64748B", "#60A5FA"];
-    const dynamicColors = task.options.map((_: any, index: number) => colors[index % colors.length]);
+    const dynamicColors = task.options.map((_, index: number) => colors[index % colors.length]);
 
     const chartOptions = {
         responsive: true,
@@ -115,11 +140,11 @@ export default function TaskPage() {
 
 
     const chartData = {
-        labels: task.options.map((opt: any) => `Option ${opt.id}`),
+        labels: task.options.map((opt) => `Option ${opt.id}`),
         datasets: [
             {
                 label: "Votes",
-                data: task.options.map((opt: any) => result?.[opt.id]?.count || 0),
+                data: task.options.map((opt) => result?.[opt.id]?.count || 0),
                 backgroundColor: dynamicColors,
                 borderColor: "#1E3A8A",
                 borderWidth: 1,
@@ -143,7 +168,7 @@ export default function TaskPage() {
 
                 {/* Options */}
                 <div className="flex flex-wrap justify-center gap-4 mt-10">
-                    {task.options.map((opt: any) => (
+                    {task.options.map((opt) => (
                         <div
                             key={opt.id}
                             className="group w-56 bg-slate-800 hover:bg-gray-500 rounded-xl border border-slate-700 p-4 flex flex-col items-center shadow-md hover:shadow-lg transition cursor-pointer"

@@ -15,6 +15,10 @@ export const Appbar = ( ) => {
         userId: string;
     };
 
+    type SignInResponse = {
+        token: string;
+    };
+
     const { publicKey, connected, signMessage, disconnect } = useWallet();
     const { isSignedIn, setIsSignedIn } = useAuth();
     const [prevPK, setPrevPK] = useState<string | null>(null);
@@ -47,12 +51,16 @@ export const Appbar = ( ) => {
         try {
             const signature = await signMessage?.(encodedMessage);
 
-            // @ts-expect-error
+            if (!signature) {
+                console.error("Signature is undefined");
+                return;
+            }
+
             const encodedSignature = bs58.encode(signature);
 
             console.log("hitting with payload: ", publicKey.toString(), encodedSignature, messageFE);
 
-            const response: any = await axios.post(`${USER_BACKEND_URL}/signin`, 
+            const response = await axios.post<SignInResponse>(`${USER_BACKEND_URL}/signin`, 
                 {
                     encodedSignature,
                     publicKey: publicKey.toString(),

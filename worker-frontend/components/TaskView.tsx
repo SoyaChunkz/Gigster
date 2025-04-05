@@ -87,9 +87,12 @@ export const TaskView = () => {
       }
 
       setSelectedOption(null);
-    } catch (error) {
-      // @ts-expect-error
-      const errorMessage = error.response?.data?.message || "Failed to submit task.";
+    } catch (error: any) {
+      let errorMessage = "Failed to submit task.";
+
+      if (error && error.response && error.response.data?.message) {
+        errorMessage = error.response.data.message;
+      }
       console.log("message: ", errorMessage);
       toast.error(errorMessage);
       console.error("Error submitting task:", error);
@@ -179,35 +182,34 @@ export const TaskView = () => {
 
       {/* Modal */}
       {(showModal || isClosing) && fullImageUrl && (
-  <div
-    className={`fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md transition-opacity duration-300 ${
-      isClosing ? "animate-fade-out" : "animate-fade-in"
-    }`}
-  >
-    <div className="relative bg-black border border-white/20 rounded-lg p-8 max-w-3xl w-[90%] max-h-[85vh] overflow-auto shadow-2xl">
-      <button
-        className="scale-110 absolute top-3 right-3 text-white text-xl hover:text-red-400"
-        onClick={() => {
-          setIsClosing(true);
-          setTimeout(() => {
-            setShowModal(false);
-            setIsClosing(false);
-            setFullImageUrl(null); 
-          }, 300);
-        }}
-      >
-        &times;
-      </button>
-      <img
-        src={fullImageUrl}
-        alt="Full View"
-        className="w-full h-auto rounded-lg object-contain"
-      />
-    </div>
-  </div>
-)}
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md transition-opacity duration-300 ${isClosing ? "animate-fade-out" : "animate-fade-in"
+            }`}
+        >
+          <div className="relative bg-black border border-white/20 rounded-lg p-8 max-w-3xl w-[90%] max-h-[85vh] overflow-auto shadow-2xl">
+            <button
+              className="scale-110 absolute top-3 right-3 text-white text-xl hover:text-red-400"
+              onClick={() => {
+                setIsClosing(true);
+                setTimeout(() => {
+                  setShowModal(false);
+                  setIsClosing(false);
+                  setFullImageUrl(null);
+                }, 300);
+              }}
+            >
+              &times;
+            </button>
+            <img
+              src={fullImageUrl}
+              alt="Full View"
+              className="w-full h-auto rounded-lg object-contain"
+            />
+          </div>
+        </div>
+      )}
 
-<style jsx>{`
+      <style jsx>{`
   .animate-fade-in {
     animation: fadeIn 0.3s ease-in-out forwards;
   }

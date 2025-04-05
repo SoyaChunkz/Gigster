@@ -1,23 +1,34 @@
 "use client"
-import { useState } from "react";
+import { useState, ChangeEvent } from "react";
 import axios from "axios";
 import { USER_BACKEND_URL, CLOUDFRONT_URL } from "../utils/index";
 import { FaPlus } from "react-icons/fa";
+import toast from "react-hot-toast";
 
 export const UploadImage = ({ onImageAdded, image }: 
     { onImageAdded: (image: string) => void; 
       image?: string; 
     }) => {
 
+        interface ResType {
+            preSignedUrl: string,
+            key: string
+        }
+
         const [uploading, setUploading] = useState(false);
 
-        async function onFileSelect(e: any) {
+        async function onFileSelect(e: ChangeEvent<HTMLInputElement>) {
             try {
                 
                 console.log("got file")
                 console.log(e.target.files)
-                const file = e.target.files[0];
-                const response: any = await axios.get(`${USER_BACKEND_URL}/preSignedUrl`, {
+                const file = e.target.files?.[0];
+                if (!file) {
+                    toast.error("No file selected.");
+                    setUploading(false);
+                    return;
+                  }
+                const response = await axios.get<ResType>(`${USER_BACKEND_URL}/preSignedUrl`, {
                     headers: {
                         "Authorization": `Bearer ${localStorage.getItem("token")}`
                     }

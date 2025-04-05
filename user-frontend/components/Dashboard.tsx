@@ -30,7 +30,7 @@ export const Dashboard = () => {
     const { isSignedIn, setIsSignedIn } = useAuth();
     const [showTasks, setShowTasks] = useState(false);
     const [expandedTask, setExpandedTask] = useState<number | null>(null);
-    const [showAllSubs, setShowAllSubs] = useState({}); 
+    const [showAllSubs, setShowAllSubs] = useState<Record<number, boolean>>({}); 
     
     const fetchTasks = async () => {
         const token = localStorage.getItem("token");
@@ -40,15 +40,13 @@ export const Dashboard = () => {
         }
 
         try {
-            const response= await axios.get(`${USER_BACKEND_URL}/tasks`, {
+            const response = await axios.get<{ tasks: Task[] }>(`${USER_BACKEND_URL}/tasks`, {
                 headers: {
                     "Authorization": `Bearer ${localStorage.getItem("token")}`,
                 },
             });
 
-            //@ts-expect-error
             setTasks(response.data.tasks);
-            //@ts-expect-error
             console.log(response.data.tasks);
         } catch (error) {
             console.error("Error fetching tasks:", error);
@@ -116,7 +114,6 @@ export const Dashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
               {tasks.map((task) => {
                 const isExpanded = expandedTask === task.id;
-                // @ts-expect-error
                 const showAll = showAllSubs[task.id];
                 const visibleSubs = showAll ? task.submissions : task.submissions.slice(0, 5);
                 const hasMore = task.submissions.length > 5;
@@ -206,7 +203,6 @@ export const Dashboard = () => {
                                   onClick={() =>
                                     setShowAllSubs((prev) => ({
                                       ...prev,
-                                      //@ts-expect-error
                                       [task.id]: !prev[task.id],
                                     }))
                                   }
