@@ -87,11 +87,15 @@ export const TaskView = () => {
       }
 
       setSelectedOption(null);
-    } catch (error: any) {
+    } catch (error: unknown ) {
       let errorMessage = "Failed to submit task.";
-
-      if (error && error.response && error.response.data?.message) {
-        errorMessage = error.response.data.message;
+      if (
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        (error as any).response?.data?.message
+      ) {
+        errorMessage = (error as any).response.data.message;
       }
       console.log("message: ", errorMessage);
       toast.error(errorMessage);
