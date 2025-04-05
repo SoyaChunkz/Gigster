@@ -10,6 +10,8 @@ export const JWT_SECRET = requiredEnv("JWT_SECRET");
 export const WORKER_JWT_SECRET = requiredEnv("WORKER_JWT_SECRET");
 export const PARENT_WALLET_ADDRESS = requiredEnv("PARENT_WALLET_ADDRESS");
 export const PARENT_WALLET_KEY = requiredEnv("PARENT_WALLET_KEY");
+export const ACCESS_KEY_ID = requiredEnv("ACCESS_KEY_ID");
+export const SECRET_ACCESS_KEY = requiredEnv("SECRET_ACCESS_KEY");
 
 export const DEFAULT_TITLE = "Select the most clickable thumbnail";
 export const ALLOWED_TIME_DIFF = 5 * 60 * 1000;

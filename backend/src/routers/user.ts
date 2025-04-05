@@ -3,7 +3,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { JWT_SECRET, PARENT_WALLET_ADDRESS, DEFAULT_TITLE, ALLOWED_TIME_DIFF } from "../config";
+import { JWT_SECRET, PARENT_WALLET_ADDRESS, DEFAULT_TITLE, ALLOWED_TIME_DIFF, ACCESS_KEY_ID, SECRET_ACCESS_KEY } from "../config";
 import { userAuthMiddleware } from "../middleware";
 import { createTaskInput } from "../types";
 import nacl from "tweetnacl";
@@ -17,8 +17,8 @@ export default function userRouter(io: SocketIOServer): Router  {
     const prisma = new PrismaClient();
     const s3Client = new S3Client({
         credentials: {
-            accessKeyId: "AKIA4I2RJUVYBNISL6ND",
-            secretAccessKey: "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"
+            accessKeyId: ACCESS_KEY_ID,
+            secretAccessKey: SECRET_ACCESS_KEY
         },
         region: "us-east-1"
     });
