@@ -270,7 +270,7 @@ export default function userRouter(io: SocketIOServer): Router  {
             });
 
             if (!txnStore) {
-                return res.status(404).json({
+                return res.json({
                     message: "No unused transaction found" 
                 });
             }
