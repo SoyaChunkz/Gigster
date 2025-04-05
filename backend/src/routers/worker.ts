@@ -120,7 +120,7 @@ export default function workerRouter(io: SocketIOServer): Router {
         const task = await getNextTask(Number(userId));
 
         if (!task) {
-            res.status(403).json({
+            res.json({
                 message: "No more tasks left for you to review."
             });
         } else {
