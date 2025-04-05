@@ -4,7 +4,7 @@
 
 ---
 
-## 🌐 Live Applications
+## 🌐 Live
 
 - 👨‍💻 **User Portal**: [gigster-user-frontend.vercel.app](https://gigster-user-frontend.vercel.app)
 - 🧑‍🔧 **Worker Portal**: [gigster-worker-frontend.vercel.app](https://gigster-worker-frontend.vercel.app)
