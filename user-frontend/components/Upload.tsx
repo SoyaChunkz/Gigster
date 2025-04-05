@@ -259,10 +259,10 @@ export const Upload = () => {
 
                         {/* Delete Button */}
                         <button
-                            className="absolute top-2 right-2 bg-gray-900 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition"
+                            className="absolute top-1 right-1 bg-gray-900 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition"
                             onClick={() => deleteImage(image)}
                         >
-                            <FaTimes size={16} />
+                            <FaTimes size={14} />
                         </button>
                     </div>
                 ))}

@@ -26,7 +26,8 @@ const getNextTask = (userId) => __awaiter(void 0, void 0, void 0, function* () {
             id: true,
             amount: true,
             title: true,
-            options: true
+            options: true,
+            contributors: true
         }
     });
     return task;

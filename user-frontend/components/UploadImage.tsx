@@ -2,6 +2,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { USER_BACKEND_URL, CLOUDFRONT_URL } from "../utils/index";
+import { FaPlus } from "react-icons/fa";
 
 export const UploadImage = ({ onImageAdded, image }: 
     { onImageAdded: (image: string) => void; 
@@ -61,8 +62,13 @@ export const UploadImage = ({ onImageAdded, image }:
         }
 
         if (image) {
-            // return <img className={"p-2 w-96 rounded"} src={image} />
-            return <img className="p-2 w-32 h-32 object-cover rounded-lg border border-gray-600" src={image} />;
+            return (
+                <img
+                    className="p-2 w-32 h-32 object-contain rounded-lg border border-gray-600 bg-gray-700"
+                    src={image}
+                    alt="Uploaded"
+                />
+            );
         }
 
 
@@ -80,19 +86,19 @@ export const UploadImage = ({ onImageAdded, image }:
             //     </div>
             // </div>
 
-            <div className="w-32 h-32 flex items-center justify-center border border-gray-600 rounded-lg bg-gray-700 cursor-pointer relative">
-                {uploading ? (
-                    <span className="text-white text-sm">Uploading...</span>
-                ) : (
-                    <>
-                        <span className="text-white text-2xl">+</span>
-                        <input
-                            type="file"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            onChange={onFileSelect}
-                        />
-                    </>
-                )}
-            </div>
+            <div className="w-32 h-32 flex items-center justify-center border border-gray-600 rounded-lg bg-gray-700 cursor-pointer relative hover:border-blue-500">
+            {uploading ? (
+                <span className="text-white text-sm">Uploading...</span>
+            ) : (
+                <>
+                    <span className="text-white text-3xl font-semibold"><FaPlus/></span>
+                    <input
+                        type="file"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={onFileSelect}
+                    />
+                </>
+            )}
+        </div>
         );
 }

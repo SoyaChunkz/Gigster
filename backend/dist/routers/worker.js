@@ -57,7 +57,6 @@ const tweetnacl_1 = __importDefault(require("tweetnacl"));
 const web3_js_1 = require("@solana/web3.js");
 const bs58_1 = __importStar(require("bs58"));
 const client_2 = require("@prisma/client");
-const TOTAL_SUBMISSIONS = 100;
 // @ts-ignore
 function workerRouter(io) {
     const router = (0, express_1.Router)();
@@ -109,7 +108,7 @@ function workerRouter(io) {
         if (existingWorker) {
             const token = jsonwebtoken_1.default.sign({
                 userId: existingWorker.id
-            }, config_1.WORKER_JWT_SECRET);
+            }, config_1.WORKER_JWT_SECRET, { expiresIn: "1h" });
             return res.json({
                 token,
                 amount: existingWorker.pending_amount / config_1.TOTAL_DECIMALS
@@ -162,14 +161,15 @@ function workerRouter(io) {
                     message: "Incorrect task ID"
                 });
             }
-            const amount = task.amount / TOTAL_SUBMISSIONS;
+            console.log(task);
+            const gigAmount = task.amount / task.contributors;
             const submission = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
                 const submission = yield tx.submission.create({
                     data: {
                         option_id: Number(parsedBody.data.selection),
                         worker_id: Number(userId),
                         task_id: Number(parsedBody.data.taskId),
-                        amount
+                        amount: gigAmount
                     }
                 });
                 yield tx.worker.update({
@@ -178,10 +178,25 @@ function workerRouter(io) {
                     },
                     data: {
                         pending_amount: {
-                            increment: amount
+                            increment: gigAmount
                         }
                     }
                 });
+                const submissionCount = yield tx.submission.count({
+                    where: {
+                        task_id: Number(parsedBody.data.taskId)
+                    }
+                });
+                if (submissionCount >= task.contributors) {
+                    yield tx.task.update({
+                        where: {
+                            id: Number(parsedBody.data.taskId)
+                        },
+                        data: {
+                            done: true
+                        }
+                    });
+                }
                 return submission;
             }));
             const nextTask = yield (0, db_1.getNextTask)(Number(userId));
@@ -192,7 +207,7 @@ function workerRouter(io) {
             });
             res.json({
                 nextTask,
-                amount: amount / config_1.TOTAL_DECIMALS
+                amount: gigAmount / config_1.TOTAL_DECIMALS
             });
         }
         else {

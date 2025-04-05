@@ -6,7 +6,8 @@ import { WORKER_BACKEND_URL } from "@/utils";
 import { useAuth } from "./AuthContext";
 
 export const Payout = () => {
-    const [loading, setLoading] = useState(false);
+    const [checkingBalance, setCheckingBalance] = useState(false);
+    const [withdrawing, setWithdrawing] = useState(false);
     const [pendingAmount, setPendingAmount] = useState<number | null>(null);
     const { isSignedIn, setIsSignedIn } = useAuth();
 
@@ -15,7 +16,7 @@ export const Payout = () => {
     const fetchBalance = async () => {
         if (!isSignedIn) return;
         try {
-            setLoading(true);
+            setCheckingBalance(true);
             const response: any = await axios.get(`${WORKER_BACKEND_URL}/balance`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
             });
@@ -31,7 +32,7 @@ export const Payout = () => {
             console.error("Error fetching balance:", error);
             toast.error("Failed to fetch balance.");
         } finally {
-            setLoading(false);
+            setCheckingBalance(false);
         }
     };
 
@@ -42,7 +43,7 @@ export const Payout = () => {
         }
 
         try {
-            setLoading(true);
+            setWithdrawing(true);
             toast.loading("Processing payout...");
             
             const response: any = await axios.get(`${WORKER_BACKEND_URL}/payout`, {
@@ -57,7 +58,7 @@ export const Payout = () => {
             console.error("Error processing payout:", error);
             toast.error("Payout failed.");
         } finally {
-            setLoading(false);
+            setWithdrawing(false);
         }
     };
 
@@ -72,21 +73,22 @@ export const Payout = () => {
     if (!isSignedIn) return <p>mkc</p>;
 
     return (
-        <div className="flex items-center space-x-4">
+        <div className="ml-auto flex items-center space-x-3">
             <button
-                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:bg-gray-400"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm transition-all shadow-sm hover:shadow-md disabled:bg-gray-500 disabled:cursor-not-allowed"
                 onClick={fetchBalance}
-                disabled={loading}
+                disabled={checkingBalance}
             >
-                {loading ? "Checking..." : "Check Balance"}
+                {checkingBalance ? "Checking..." : "Check Balance"}
             </button>
             <button
-                className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 disabled:bg-gray-400"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm transition-all shadow-sm hover:shadow-md disabled:bg-gray-500 disabled:cursor-not-allowed"
                 onClick={initiatePayout}
-                disabled={loading || pendingAmount === null || pendingAmount <= 0}
+                disabled={withdrawing  || pendingAmount === null || pendingAmount <= 0}
             >
-                {loading ? "Processing..." : "Withdraw"}
+                {withdrawing  ? "Processing..." : "Withdraw"}
             </button>
         </div>
+
     );
 };

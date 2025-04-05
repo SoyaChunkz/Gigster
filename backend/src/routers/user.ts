@@ -3,7 +3,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { JWT_SECRET, TOTAL_DECIMALS, PARENT_WALLET_ADDRESS, DEFAULT_TITLE, ALLOWED_TIME_DIFF } from "../config";
+import { JWT_SECRET, PARENT_WALLET_ADDRESS, DEFAULT_TITLE, ALLOWED_TIME_DIFF } from "../config";
 import { userAuthMiddleware } from "../middleware";
 import { createTaskInput } from "../types";
 import nacl from "tweetnacl";
@@ -42,7 +42,7 @@ export default function userRouter(io) {
         const decodedSignature = bs58.decode(encodedSignature);
         console.log("decodedSignature", decodedSignature);
 
-        
+
         const messagePrefix = `Sign into Gigster\nWallet: ${publicKey?.toString()}\nTimestamp: `;
         if (!messageFE.startsWith(messagePrefix)) {
             return res.status(400).json({ error: "Invalid message format" });
@@ -91,7 +91,7 @@ export default function userRouter(io) {
         if (existingUser) {
             const token = jwt.sign({
                 userId: existingUser.id
-            }, JWT_SECRET);
+            }, JWT_SECRET, { expiresIn: "1h" });
 
             return res.json({
                 token
@@ -299,7 +299,6 @@ export default function userRouter(io) {
         }
     });
 
-// TODO: what if there is more unused amt in txnStore than the actual task's amt, update the logic here 
     // @ts-ignore
     router.post("/task", userAuthMiddleware, async (req, res) => {
 
@@ -457,7 +456,7 @@ export default function userRouter(io) {
                 user_id: Number(userId)
             },
             include: {
-                options: true
+                options: true,
             }
         });
 
@@ -513,6 +512,10 @@ export default function userRouter(io) {
                 where: {
                     user_id: Number(userId)
                 },
+                orderBy: [
+                    { done: 'asc' }, 
+                    { id: 'desc' }
+                ],
                 select: {
                     id: true,
                     title: true,

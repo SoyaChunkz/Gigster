@@ -81,7 +81,7 @@ function userRouter(io) {
         if (existingUser) {
             const token = jsonwebtoken_1.default.sign({
                 userId: existingUser.id
-            }, config_1.JWT_SECRET);
+            }, config_1.JWT_SECRET, { expiresIn: "1h" });
             return res.json({
                 token
             });
@@ -247,7 +247,6 @@ function userRouter(io) {
             return res.status(500).json({ error: "Internal Server Error" });
         }
     }));
-    // TODO: what if there is more unused amt in txnStore than the actual task's amt, update the logic here 
     // @ts-ignore
     router.post("/task", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h;
@@ -370,7 +369,7 @@ function userRouter(io) {
                 user_id: Number(userId)
             },
             include: {
-                options: true
+                options: true,
             }
         });
         if (!taskDetails) {
@@ -412,6 +411,10 @@ function userRouter(io) {
                 where: {
                     user_id: Number(userId)
                 },
+                orderBy: [
+                    { done: 'asc' },
+                    { id: 'desc' }
+                ],
                 select: {
                     id: true,
                     title: true,

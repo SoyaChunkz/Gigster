@@ -10,9 +10,6 @@ import { PublicKey, Connection, clusterApiUrl, SystemProgram, Transaction, Keypa
 import bs58, { decode } from "bs58";
 import { TxnStatus } from "@prisma/client";
 
-const TOTAL_SUBMISSIONS: number = 100;
-
-
 // @ts-ignore
 export default function workerRouter(io) {
     const router = Router();
@@ -86,7 +83,7 @@ export default function workerRouter(io) {
         if (existingWorker) {
             const token = jwt.sign({
                 userId: existingWorker.id
-            }, WORKER_JWT_SECRET);
+            }, WORKER_JWT_SECRET, { expiresIn: "1h" });
 
             return res.json({
                 token,
@@ -152,7 +149,9 @@ export default function workerRouter(io) {
                 });
             }
 
-            const amount = task.amount / TOTAL_SUBMISSIONS;
+            console.log(task);
+
+            const gigAmount = task.amount / task.contributors;
 
             const submission = await prisma.$transaction(async tx => {
 
@@ -161,7 +160,7 @@ export default function workerRouter(io) {
                         option_id: Number(parsedBody.data.selection),
                         worker_id: Number(userId),
                         task_id: Number(parsedBody.data.taskId),
-                        amount
+                        amount: gigAmount
                     }
                 });
 
@@ -171,10 +170,27 @@ export default function workerRouter(io) {
                     },
                     data: {
                         pending_amount: {
-                            increment: amount
+                            increment: gigAmount
                         }
                     }
                 });
+
+                const submissionCount = await tx.submission.count({
+                    where: {
+                        task_id: Number(parsedBody.data.taskId)
+                    }
+                });
+
+                if (submissionCount >= task.contributors) {
+                    await tx.task.update({
+                        where: {
+                            id: Number(parsedBody.data.taskId)
+                        },
+                        data: {
+                            done: true
+                        }
+                    });
+                }
 
                 return submission;
             });
@@ -190,7 +206,7 @@ export default function workerRouter(io) {
 
             res.json({
                 nextTask,
-                amount: amount / TOTAL_DECIMALS
+                amount: gigAmount / TOTAL_DECIMALS
             });
         } else {
             res.status(411).json({

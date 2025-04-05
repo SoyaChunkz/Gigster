@@ -17,7 +17,8 @@ export const getNextTask = async (userId: number) => {
             id: true,
             amount: true,
             title: true,
-            options: true
+            options: true,
+            contributors: true
         }
     });
 

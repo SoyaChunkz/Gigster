@@ -7,8 +7,14 @@ import axios from "axios";
 import { useAuth } from "./AuthContext";
 import bs58 from "bs58";
 import { Payout } from "./Payout";
+import { jwtDecode } from "jwt-decode";
 
 export const Appbar = ( ) => {
+
+    type DecodedToken = {
+        exp: number;
+        userId: string;
+    };
 
     const { publicKey, connected, signMessage, disconnect } = useWallet();
     const { isSignedIn, setIsSignedIn } = useAuth();
@@ -55,15 +61,50 @@ export const Appbar = ( ) => {
                 }
             );
 
-            localStorage.setItem("token", response.data.token);
+            const token = response.data.token;
+            localStorage.setItem("token", token);
             localStorage.setItem("prevPK", publicKey.toString());
             setPrevPK(publicKey.toString());
             setIsSignedIn(true);
+            handleTokenTimeout(token);
 
         } catch (error) {
             console.error("Error signing message:", error);
         }
     }
+
+    const handleTokenTimeout = (token: string) => {
+        try {
+            const decoded: DecodedToken = jwtDecode(token);
+            const now = Date.now() / 1000;
+    
+            if (decoded.exp < now) {
+                console.log("Token already expired.");
+                localStorage.removeItem("token");
+                localStorage.removeItem("prevPK");
+                setIsSignedIn(false);
+                return;
+            }
+    
+            const timeUntilExpiry = (decoded.exp - now) * 1000;
+            console.log(`Setting token expiration timer for ${timeUntilExpiry / 1000} seconds`);
+    
+            const timer = setTimeout(() => {
+                console.log("Token expired (timeout), clearing...");
+                localStorage.removeItem("token");
+                localStorage.removeItem("prevPK");
+                setIsSignedIn(false);
+            }, timeUntilExpiry);
+    
+            return () => clearTimeout(timer);
+    
+        } catch (err) {
+            console.error("Error decoding token:", err);
+            localStorage.removeItem("token");
+            localStorage.removeItem("prevPK");
+            setIsSignedIn(false);
+        }
+    };
     
     useEffect(() => {
         console.log("useEffect0")
@@ -105,7 +146,7 @@ export const Appbar = ( ) => {
     useEffect(() => {
         const token = localStorage.getItem("token");
         if (token) {
-            setIsSignedIn(true);
+            handleTokenTimeout(token);
         } 
     }, []);
     
@@ -124,17 +165,26 @@ export const Appbar = ( ) => {
     }
     
     return (
-        <div className="flex justify-between border-b p-4 items-center">
-            <div className="text-3xl font-bold">
+            <div className="flex justify-between items-center p-4 bg-gray-900 shadow-md border-b border-gray-700">
+              {/* Left side: Logo */}
+              <div className="text-2xl font-semibold text-white">
                 Gigster (Worker)
+              </div>
+          
+              {/* Right side: Payout + Wallet Buttons */}
+              <div className="flex items-center gap-4">
+                {isSignedIn && <Payout />}
+          
+                <div className="rounded-md overflow-hidden">
+                  <WalletMultiButton className="!bg-blue-600 hover:!bg-blue-700 !text-white !font-medium !px-4 !py-2 !rounded-md" />
+                </div>
+                <div className="rounded-md overflow-hidden">
+                  <WalletDisconnectButton
+                    onClick={handleDisconnect}
+                    className="!bg-red-600 hover:!bg-red-700 !text-white !font-medium !px-4 !py-2 !rounded-md"
+                  />
+                </div>
+              </div>
             </div>
-
-            {isSignedIn && <Payout/>}
-
-            <div className="px-4 py-2 rounded-md flex gap-3">
-                <WalletMultiButton/>
-                <WalletDisconnectButton onClick={handleDisconnect}/>
-            </div>
-        </div>
-    );
+          );
 }

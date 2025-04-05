@@ -5,7 +5,6 @@ import userRouter from "./routers/user";
 import workerRouter from "./routers/worker";
 import cors from "cors";
 
-
 const app = express();
 const server = createServer(app);
 
@@ -27,7 +26,7 @@ io.on("connection", (socket) => {
   });
 });
   
-  // @ts-ignore
+// @ts-ignore
 app.use("/user", userRouter(io));
 // @ts-ignore
 app.use("/worker", workerRouter(io));

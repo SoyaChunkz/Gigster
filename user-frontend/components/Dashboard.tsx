@@ -28,9 +28,9 @@ export const Dashboard = () => {
 
     const [tasks, setTasks] = useState<Task[]>([]);
     const { isSignedIn, setIsSignedIn } = useAuth();
+    const [showTasks, setShowTasks] = useState(false);
     const [expandedTask, setExpandedTask] = useState<number | null>(null);
-
-    // const auth = useAuth();
+    const [showAllSubs, setShowAllSubs] = useState({}); 
     
     const fetchTasks = async () => {
         const token = localStorage.getItem("token");
@@ -48,7 +48,8 @@ export const Dashboard = () => {
 
             // @ts-ignore
             setTasks(response.data.tasks);
-            // console.log(response.data.tasks);
+            // @ts-ignore
+            console.log(response.data.tasks);
         } catch (error) {
             console.error("Error fetching tasks:", error);
         }
@@ -84,108 +85,149 @@ export const Dashboard = () => {
     if (!isSignedIn) return null; 
 
     return (
-        <div className="max-w-[90%] mx-auto p-6">
-            <h1 className="text-4xl font-bold mb-8 text-white">Task Dashboard</h1>
-    
-            {tasks.length === 0 ? (
-                <p className="text-gray-400">No tasks available.</p>
+      <div className="max-w-6xl mx-auto px-6 py-10 font-sans text-slate-200 animate-fade-in">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold text-white drop-shadow-md">Task Dashboard</h1>
+          <button
+            onClick={() => setShowTasks((prev) => !prev)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 text-sm rounded-lg transition-all shadow hover:shadow-lg flex items-center gap-2"
+          >
+            {showTasks ? (
+              <>
+                <FiChevronUp /> Hide Tasks
+              </>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {tasks.map((task, index) => (
-                        <div 
-                            key={index} 
-                            className="p-6 bg-gray-800 text-white rounded-lg shadow-lg"
-                        >
-                            <h2 className="text-xl font-semibold break-words text-white">🆔 Task {index + 1} - {task.title}</h2>
-    
-                            <p className="text-sm text-gray-400">Options: {task.options.length}</p>
-                            <p className="text-sm text-gray-400">Status: {task.done ? "Completed" : "In Progress"}</p>
-
-                            {/* Task Options (Images) */}
-                            {task.options.length > 0 && (
-                                <div className="mt-4">
-                                    <h3 className="text-lg font-medium">Options</h3>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {task.options.map((option) => (
-                                            <img
-                                                key={option.id}
-                                                src={option.image_url}
-                                                alt={`Option ${option.id}`}
-                                                className="w-full h-auto rounded-lg object-contain border border-gray-700"
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="mt-4 flex gap-3">
-                                <button
-                                    className="flex items-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-all"
-                                    onClick={() => window.open(`/task/${task.id}`, "_blank")
-                                }
-                                >
-                                    <FiExternalLink className="mr-2" /> View Task
-                                </button>
-                                <button
-                                    className="flex items-center bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-all"
-                                    onClick={() =>
-                                        setExpandedTask(expandedTask === task.id ? null : task.id)
-                                    }
-                                >
-                                    
-                                    {expandedTask === task.id ? (
-                                        <>
-                                            <FiChevronUp className="mr-2" /> Hide Submissions
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FiChevronDown className="mr-2" /> Show Submissions
-                                        </>
-                                    )}
-                        
-                                </button>
-                            </div>
-
-                            {expandedTask === task.id && (
-                                <div className="mt-6 p-4 bg-gray-900 rounded-lg">
-                                    <h3 className="text-lg font-medium">Submissions</h3>
-                                    {task.submissions.length > 0 ? (
-                                        <ul className="list-disc list-inside text-gray-300">
-                                            {task.submissions.map((submission, idx) => (
-                                                <li key={idx}>
-                                                    Worker {submission.worker_id} → Option {submission.option_id}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <p className="text-gray-400">No submissions yet.</p>
-                                    )}
-                                </div>
-                            )}
-    
-                            {/* Submissions
-                            <div className="mt-4">
-                                <h3 className="text-lg font-medium">📊 Submissions</h3>
-                                {// @ts-ignore 
-                                task.submissions?.length > 0 ? (
-                                    <ul className="list-disc list-inside">
-                                        {// @ts-ignore
-                                        task.submissions.map((submission: any) => (
-                                            <li key={submission.id} className="text-gray-300">
-                                                Worker ID: <span className="text-white font-bold">{submission.worker_id}</span> |
-                                                Option ID: <span className="text-white font-bold">{submission.option_id}</span> |
-                                                💰 Amount: <span className="text-green-400 font-bold">{submission.amount}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p className="text-gray-400">No submissions yet.</p>
-                                )}
-                            </div> */}
-                        </div>
-                    ))}
-                </div>
+              <>
+                <FiChevronDown /> Show Tasks
+              </>
             )}
+          </button>
         </div>
+
+        {/* Task List */}
+        <div
+          className={`transition-all duration-500 ease-in-out overflow-hidden ${showTasks ? "max-h-[100%] opacity-100" : "max-h-0 opacity-0"
+            }`}
+        >
+          {tasks.length === 0 ? (
+            <p className="text-gray-400">No tasks available.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
+              {tasks.map((task) => {
+                const isExpanded = expandedTask === task.id;
+                // @ts-ignore
+                const showAll = showAllSubs[task.id];
+                const visibleSubs = showAll ? task.submissions : task.submissions.slice(0, 5);
+                const hasMore = task.submissions.length > 5;
+
+                return (
+                  <div
+                    key={task.id}
+                    className="bg-black/30 border border-white/10 shadow-xl rounded-xl p-6 text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:bg-slate-800 flex flex-col items-center justify-between"
+                  >
+                    {/* Top Section */}
+                    <div>
+                      <h2 className="text-xl font-semibold flex items-center gap-2 text-indigo-200">
+                        Task #{task.id}
+                      </h2>
+                      <p className="text-slate-400 mt-1 break-words">{task.title}</p>
+                      <p className="text-sm text-gray-400 mt-2">Options: {task.options.length}</p>
+                      <p className="text-sm text-gray-400">
+                        Status: {task.done ? "✅ Completed" : "🕐 In Progress"}
+                      </p>
+
+                      {/* Options */}
+                      {task.options.length > 0 && (
+                        <div className="mt-4">
+                          <h3 className="text-lg font-medium mb-2 text-slate-300">Options</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            {task.options.map((option) => (
+                              <div
+                                key={option.id}
+                                className="w-full bg-slate-800 rounded-md border border-slate-700 p-2 flex justify-center items-center"
+                              >
+                                <img
+                                  src={option.image_url}
+                                  alt={`Option ${option.id}`}
+                                  className="max-h-40 w-full object-contain transition-transform duration-300 hover:scale-105"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Section */}
+                    <div className="mt-4">
+                      {/* Buttons */}
+                      <div className="flex gap-3">
+                        <button
+                          className="flex items-center bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 text-sm rounded-md transition-all shadow hover:shadow-lg"
+                          onClick={() => window.open(`/task/${task.id}`, "_blank")}
+                        >
+                          <FiExternalLink className="mr-1.5" /> View Task
+                        </button>
+                        <button
+                          className="flex items-center bg-gray-700 hover:bg-gray-600 text-white py-1.5 px-3 text-sm rounded-md transition-all"
+                          onClick={() => setExpandedTask(isExpanded ? null : task.id)}
+                        >
+                          {isExpanded ? (
+                            <>
+                              <FiChevronUp className="mr-1" /> Hide Submissions
+                            </>
+                          ) : (
+                            <>
+                              <FiChevronDown className="mr-1" /> Show Submissions
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Submissions */}
+                      <div
+                        className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? "mt-4 opacity-100" : "max-h-0 opacity-0"
+                          }`}
+                      >
+                        <div className="p-4 bg-gray-800/70 backdrop-blur-lg rounded-lg border border-white/10 mt-2">
+                          <h3 className="text-lg font-medium mb-2 text-slate-300">Submissions</h3>
+                          {task.submissions.length > 0 ? (
+                            <>
+                              <ul className="list-disc list-inside text-gray-400 space-y-1">
+                                {visibleSubs.map((submission, idx) => (
+                                  <li key={idx}>
+                                    Worker {submission.worker_id} → Option {submission.option_id}
+                                  </li>
+                                ))}
+                              </ul>
+                              {hasMore && (
+                                <button
+                                  onClick={() =>
+                                    setShowAllSubs((prev) => ({
+                                      ...prev,
+                                      // @ts-ignore
+                                      [task.id]: !prev[task.id],
+                                    }))
+                                  }
+                                  className="mt-2 text-indigo-400 text-sm hover:underline"
+                                >
+                                  {showAll ? "Show Less" : "... Show All"}
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-gray-500">No submissions yet.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     );
 }
