@@ -1,2 +1,2 @@
-export const WORKER_BACKEND_URL = "http://localhost:5000/worker";
-export const CLOUDFRONT_URL = "https://dmtfkrnd3xsj2.cloudfront.net"
+export const WORKER_BACKEND_URL = process.env.NEXT_PUBLIC_WORKER_BACKEND_URL;
+export const CLOUDFRONT_URL = process.env.NEXT_PUBLIC_CLOUDFRONT_URL;

@@ -9,10 +9,9 @@ import { createTaskInput } from "../types";
 import nacl from "tweetnacl";
 import { PublicKey, Connection, clusterApiUrl, SystemProgram } from "@solana/web3.js";
 import bs58 from "bs58";
+import { Server as SocketIOServer } from "socket.io";
 
-
-// @ts-ignore
-export default function userRouter(io) {
+export default function userRouter(io: SocketIOServer): Router  {
 
     const router = Router();
     const prisma = new PrismaClient();
@@ -31,16 +30,16 @@ export default function userRouter(io) {
     router.post("/signin", async (req, res) => {
 
         const { publicKey, encodedSignature, messageFE } = req.body;
-        console.log("Received PublicKey:", publicKey);
-        console.log("Received encodedSignature:", encodedSignature);
-        console.log("Received message:", messageFE);
+        // console.log("Received PublicKey:", publicKey);
+        // console.log("Received encodedSignature:", encodedSignature);
+        // console.log("Received message:", messageFE);
 
         if (!encodedSignature || !publicKey || !messageFE) {
             return res.status(400).json({ error: "Missing signature or publicKey or message" });
         }
 
         const decodedSignature = bs58.decode(encodedSignature);
-        console.log("decodedSignature", decodedSignature);
+        // console.log("decodedSignature", decodedSignature);
 
 
         const messagePrefix = `Sign into Gigster\nWallet: ${publicKey?.toString()}\nTimestamp: `;
@@ -49,21 +48,21 @@ export default function userRouter(io) {
         }
 
         const timestampStr = messageFE.replace(messagePrefix, "").trim();
-        console.log("Extracted Timestamp:", timestampStr);
+        // console.log("Extracted Timestamp:", timestampStr);
 
         const [datePart, timePart] = timestampStr.split("_");
         const [day, month, year] = datePart.split("-").map(Number);
         const [hours, minutes, seconds] = timePart.split("-").map(Number);
 
         const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
-        console.log("Parsed Timestamp (ms):", timestamp);
+        // console.log("Parsed Timestamp (ms):", timestamp);
 
         if (isNaN(timestamp)) {
             return res.status(400).json({ error: "Invalid timestamp format" });
         }
 
         const now = Date.now();
-        console.log("Current Time (ms):", now);
+        // console.log("Current Time (ms):", now);
 
         if (Math.abs(now - timestamp) > ALLOWED_TIME_DIFF) {
             return res.status(401).json({ error: "Timestamp expired" });
@@ -118,7 +117,7 @@ export default function userRouter(io) {
     // @ts-ignore
     router.get("/preSignedUrl", userAuthMiddleware, async (req, res) => {
 
-        console.log("in presignedurl api")
+        // console.log("in presignedurl api")
         // @ts-ignore
         const userId: string = req.userId;
 
@@ -143,8 +142,8 @@ export default function userRouter(io) {
             expiresIn: 3600
         });
 
-        console.log("generated presigned URL is: " + preSignedUrl);
-        console.log("imagekey is: " + fileKey);
+        // console.log("generated presigned URL is: " + preSignedUrl);
+        // console.log("imagekey is: " + fileKey);
 
         return res.json({
             preSignedUrl: preSignedUrl,
@@ -172,7 +171,7 @@ export default function userRouter(io) {
             });
 
             await s3Client.send(command);
-            console.log(`File deleted successfully: ${fileKey}`);
+            // console.log(`File deleted successfully: ${fileKey}`);
 
             return res.json({
                 message: "File deleted successfully"
@@ -189,7 +188,7 @@ export default function userRouter(io) {
     router.post("/storeTxn", userAuthMiddleware, async (req, res) => {
 
         try {
-            console.log("storing new txn")
+            // console.log("storing new txn")
 
             //@ts-ignore
             const userId = req.userId
@@ -237,15 +236,14 @@ export default function userRouter(io) {
     router.get("/getTxn", userAuthMiddleware, async (req, res) => {
 
         try {
-            console.log("getting  txn")
+            // console.log("getting  txn")
             
             const amountInLamports  = req.query.amountInLamports;
-            console.log(amountInLamports)
+            // console.log(amountInLamports)
             if (!amountInLamports) {
                 return res.status(400).json({ error: "Amount is required" });
             }
 
-            
             //@ts-ignore
             const userId = req.userId
             
@@ -302,13 +300,13 @@ export default function userRouter(io) {
     // @ts-ignore
     router.post("/task", userAuthMiddleware, async (req, res) => {
 
-        console.log("creating new task")
+        // console.log("creating new task")
 
         //@ts-ignore
         const userId = req.userId
 
         const body = req.body;
-        console.log(body)
+        // console.log(body)
 
         // input validation
         const parsedData = createTaskInput.safeParse(body);
@@ -325,7 +323,7 @@ export default function userRouter(io) {
             }
         });
 
-        console.log("parsed body: ", parsedData)
+        // console.log("parsed body: ", parsedData)
 
         const txnStore = await prisma.txnStore.findFirst({
             where: {
@@ -352,7 +350,7 @@ export default function userRouter(io) {
     
         const transactionDetails = await connection.getParsedTransaction(txnSignature, "confirmed");
 
-        console.log("txn: ", transactionDetails)
+        // console.log("txn: ", transactionDetails)
 
         if (!transactionDetails)
             return res.status(411).json({
@@ -368,7 +366,7 @@ export default function userRouter(io) {
                 message: "Transaction does not contain a SOL transfer."
             });
 
-        console.log("instruction", transferInstruction, "\n", SystemProgram.programId.toString());
+        // console.log("instruction", transferInstruction, "\n", SystemProgram.programId.toString());
 
         const transferredAmount = (transactionDetails.meta?.postBalances[1] ?? 0) - (transactionDetails?.meta?.preBalances[1] ?? 0);
 
@@ -378,7 +376,8 @@ export default function userRouter(io) {
             });
         }
 
-        console.log("to address in txn: ", transactionDetails.transaction.message.accountKeys.at(1)?.pubkey.toString());
+        // console.log("to address in txn: ", transactionDetails.transaction.message.accountKeys.at(1)?.pubkey.toString());
+        // console.log("to address in txn: ", PARENT_WALLET_ADDRESS);
 
         if (transactionDetails.transaction.message.accountKeys.at(1)?.pubkey.toString() !== PARENT_WALLET_ADDRESS) {
             return res.status(411).json({
@@ -386,7 +385,7 @@ export default function userRouter(io) {
             });
         }
 
-        console.log("from address in txn: ", transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString());
+        // console.log("from address in txn: ", transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString());
 
         if (transactionDetails.transaction.message.accountKeys.at(0)?.pubkey.toString() !== user?.address) {
             return res.status(411).json({
@@ -448,7 +447,7 @@ export default function userRouter(io) {
         const userId: string = req.userId; 
 
         const taskId: string = req.params.taskId;
-        // console.log("starting to get task: ", taskId)
+        console.log("starting to get task: ", taskId)
 
         const taskDetails = await prisma.task.findFirst({
             where: {
@@ -531,7 +530,7 @@ export default function userRouter(io) {
                 });
             }
 
-            // console.log(tasks)
+            console.log(tasks)
 
             return res.json({
                 tasks

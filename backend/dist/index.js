@@ -25,9 +25,7 @@ io.on("connection", (socket) => {
         console.log("Client disconnected:", socket.id);
     });
 });
-// @ts-ignore
 app.use("/user", (0, user_1.default)(io));
-// @ts-ignore
 app.use("/worker", (0, worker_1.default)(io));
 const PORT = 5000;
 server.listen(PORT, () => {

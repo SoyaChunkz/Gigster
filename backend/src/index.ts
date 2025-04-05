@@ -26,9 +26,7 @@ io.on("connection", (socket) => {
   });
 });
   
-// @ts-ignore
 app.use("/user", userRouter(io));
-// @ts-ignore
 app.use("/worker", workerRouter(io));
 
 const PORT = 5000;

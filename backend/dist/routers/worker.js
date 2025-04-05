@@ -57,7 +57,6 @@ const tweetnacl_1 = __importDefault(require("tweetnacl"));
 const web3_js_1 = require("@solana/web3.js");
 const bs58_1 = __importStar(require("bs58"));
 const client_2 = require("@prisma/client");
-// @ts-ignore
 function workerRouter(io) {
     const router = (0, express_1.Router)();
     const prisma = new client_1.PrismaClient({
@@ -67,30 +66,30 @@ function workerRouter(io) {
     // @ts-ignore
     router.post("/signin", (req, res) => __awaiter(this, void 0, void 0, function* () {
         const { publicKey, encodedSignature, messageFE } = req.body;
-        console.log("Received PublicKey:", publicKey);
-        console.log("Received encodedSignature:", encodedSignature);
-        console.log("Received message:", messageFE);
+        // console.log("Received PublicKey:", publicKey);
+        // console.log("Received encodedSignature:", encodedSignature);
+        // console.log("Received message:", messageFE);
         if (!encodedSignature || !publicKey || !messageFE) {
             return res.status(400).json({ error: "Missing signature or publicKey or message" });
         }
         const decodedSignature = bs58_1.default.decode(encodedSignature);
-        console.log("decodedSignature", decodedSignature);
+        // console.log("decodedSignature", decodedSignature);
         const messagePrefix = `Sign into Gigster\nWallet: ${publicKey === null || publicKey === void 0 ? void 0 : publicKey.toString()}\nTimestamp: `;
         if (!messageFE.startsWith(messagePrefix)) {
             return res.status(400).json({ error: "Invalid message format" });
         }
         const timestampStr = messageFE.replace(messagePrefix, "").trim();
-        console.log("Extracted Timestamp:", timestampStr);
+        // console.log("Extracted Timestamp:", timestampStr);
         const [datePart, timePart] = timestampStr.split("_");
         const [day, month, year] = datePart.split("-").map(Number);
         const [hours, minutes, seconds] = timePart.split("-").map(Number);
         const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
-        console.log("Parsed Timestamp (ms):", timestamp);
+        // console.log("Parsed Timestamp (ms):", timestamp);
         if (isNaN(timestamp)) {
             return res.status(400).json({ error: "Invalid timestamp format" });
         }
         const now = Date.now();
-        console.log("Current Time (ms):", now);
+        // console.log("Current Time (ms):", now);
         if (Math.abs(now - timestamp) > config_1.ALLOWED_TIME_DIFF) {
             return res.status(401).json({ error: "Timestamp expired" });
         }
@@ -151,9 +150,9 @@ function workerRouter(io) {
         // @ts-ignore
         const userId = req.userId;
         const body = req.body;
-        console.log("got raw body: ", body);
+        // console.log("got raw body: ", body)
         const parsedBody = types_1.createSubmissionInput.safeParse(body);
-        console.log("validated body: ", parsedBody);
+        // console.log("validated body: ", parsedBody)
         if (parsedBody.success) {
             const task = yield (0, db_1.getNextTask)(Number(userId));
             if (!task || task.id !== Number(parsedBody.data.taskId)) {
@@ -161,7 +160,7 @@ function workerRouter(io) {
                     message: "Incorrect task ID"
                 });
             }
-            console.log(task);
+            // console.log(task);
             const gigAmount = task.amount / task.contributors;
             const submission = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
                 const submission = yield tx.submission.create({
@@ -200,8 +199,8 @@ function workerRouter(io) {
                 return submission;
             }));
             const nextTask = yield (0, db_1.getNextTask)(Number(userId));
-            console.log("submission", submission);
-            console.log("next-task", nextTask);
+            // console.log("submission", submission)
+            // console.log("next-task", nextTask)
             io.emit("newSubmissionCreated", {
                 id: submission.task_id
             });
@@ -241,7 +240,7 @@ function workerRouter(io) {
     router.get("/payout", middleware_1.workerAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
         // @ts-ignore
         const userid = req.userId;
-        console.log("going to pay: ", userid);
+        // console.log("going to pay: ", userid);
         try {
             const payoutData = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
                 const worker = yield tx.$queryRaw `
@@ -253,7 +252,7 @@ function workerRouter(io) {
                 //     where: { id: Number(userid) },
                 //     select: { pending_amount: true, address: true },
                 // });
-                console.log("got worker: ", worker[0]);
+                // console.log("got worker: ", worker[0]);
                 if (!worker[0])
                     throw new Error("User not found.");
                 // @ts-ignore
@@ -265,11 +264,11 @@ function workerRouter(io) {
                     },
                 });
                 if (existingPayout) {
-                    console.log("Existing payout in progress. Checking transaction status...: ", existingPayout);
+                    // console.log("Existing payout in progress. Checking transaction status...: ", existingPayout);
                     return { message: "Payout already in progress", amount: 0 };
                 }
-                console.log("no previous pending payouts");
-                console.log("attempting to create payout log...");
+                // console.log("no previous pending payouts")
+                // console.log("attempting to create payout log..."); 
                 let payoutLog;
                 try {
                     payoutLog = yield tx.payouts.create({
@@ -280,7 +279,7 @@ function workerRouter(io) {
                             status: "Processing",
                         },
                     });
-                    console.log("created payout log:", payoutLog);
+                    // console.log("created payout log:", payoutLog);
                 }
                 catch (error) {
                     console.error("failed to create payout log:", error);
@@ -297,12 +296,12 @@ function workerRouter(io) {
                     }));
                     const keyPair = web3_js_1.Keypair.fromSecretKey((0, bs58_1.decode)(config_1.PARENT_WALLET_KEY));
                     signature = yield (0, web3_js_1.sendAndConfirmTransaction)(connection, transaction, [keyPair]);
-                    console.log("signature is: ", signature);
+                    // console.log("signature is: ", signature)
                     yield tx.payouts.update({
                         where: { id: payoutLog.id },
                         data: { signature },
                     });
-                    console.log("updated the log with signature");
+                    // console.log("updated the log with signature")
                 }
                 catch (error) {
                     console.error("Transaction failed:", error);
@@ -319,20 +318,20 @@ function workerRouter(io) {
                         pending_amount: { decrement: worker[0].pending_amount },
                     },
                 });
-                console.log("updated the worker's pending amount");
-                console.log("Payout Log ID:", payoutLog.id);
+                // console.log("updated the worker's pending amount")
+                // console.log("Payout Log ID:", payoutLog.id);
                 yield tx.payouts.update({
                     where: { id: payoutLog.id },
                     data: { status: "Success" },
                 });
-                console.log("updated the log with success state");
+                // console.log("updated the log with success state")
                 // @ts-ignore
                 return { message: "Payout successful", amount: worker[0].pending_amount / config_1.TOTAL_DECIMALS };
             }), {
                 maxWait: 5000, // Max wait time for acquiring the lock (in ms)
                 timeout: 10000, // Timeout for the entire transaction (in ms)
             });
-            console.log(payoutData);
+            // console.log(payoutData)
             res.json(payoutData);
         }
         catch (error) {

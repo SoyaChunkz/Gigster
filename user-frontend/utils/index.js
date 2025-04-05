@@ -1,4 +1,4 @@
-export const BACKEND_URL = "http://localhost:5000";
-export const USER_BACKEND_URL = "http://localhost:5000/user";
-export const CLOUDFRONT_URL = "https://dmtfkrnd3xsj2.cloudfront.net"
-export const TOTAL_DECIMALS = 1_000_000_000;
+export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+export const USER_BACKEND_URL = process.env.NEXT_PUBLIC_USER_BACKEND_URL;
+export const CLOUDFRONT_URL = process.env.NEXT_PUBLIC_CLOUDFRONT_URL;
+export const TOTAL_DECIMALS = Number(process.env.NEXT_PUBLIC_TOTAL_DECIMALS);
