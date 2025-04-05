@@ -46,14 +46,13 @@ export const Appbar = ( ) => {
         try {
             const signature = await signMessage?.(encodedMessage);
 
-            // @ts-ignore
+            // @ts-expect-error
             const encodedSignature = bs58.encode(signature);
 
             console.log("hitting with payload: ", publicKey.toString(), encodedSignature, messageFE);
 
             const response: any = await axios.post(`${USER_BACKEND_URL}/signin`, 
                 {
-                    // @ts-ignore
                     encodedSignature,
                     publicKey: publicKey.toString(),
                     messageFE

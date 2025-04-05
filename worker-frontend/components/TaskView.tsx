@@ -88,7 +88,7 @@ export const TaskView = () => {
 
       setSelectedOption(null);
     } catch (error) {
-      // @ts-ignore
+      // @ts-expect-error
       const errorMessage = error.response?.data?.message || "Failed to submit task.";
       console.log("message: ", errorMessage);
       toast.error(errorMessage);

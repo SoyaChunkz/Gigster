@@ -46,9 +46,9 @@ export const Dashboard = () => {
                 },
             });
 
-            // @ts-ignore
+            //@ts-expect-error
             setTasks(response.data.tasks);
-            // @ts-ignore
+            //@ts-expect-error
             console.log(response.data.tasks);
         } catch (error) {
             console.error("Error fetching tasks:", error);
@@ -116,7 +116,7 @@ export const Dashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
               {tasks.map((task) => {
                 const isExpanded = expandedTask === task.id;
-                // @ts-ignore
+                // @ts-expect-error
                 const showAll = showAllSubs[task.id];
                 const visibleSubs = showAll ? task.submissions : task.submissions.slice(0, 5);
                 const hasMore = task.submissions.length > 5;
@@ -206,7 +206,7 @@ export const Dashboard = () => {
                                   onClick={() =>
                                     setShowAllSubs((prev) => ({
                                       ...prev,
-                                      // @ts-ignore
+                                      //@ts-expect-error
                                       [task.id]: !prev[task.id],
                                     }))
                                   }

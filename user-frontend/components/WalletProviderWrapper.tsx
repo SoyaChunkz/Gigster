@@ -19,8 +19,7 @@ export const WalletProviderWrapper: FC<{ children: ReactNode }> = ({ children })
 
     useEffect(() => {
         console.log("Checking for wallets...");
-        // @ts-ignore
-        // console.log("window.solana:", window.solana);
+        
     }, []);
 
     
