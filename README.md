@@ -28,7 +28,7 @@
 - Earn a share of the total task cost in **SOL**.
 - Withdraw earnings to their connected **Solana wallet**.
 
-- ## 💸 Payments & SOL Handling
+## 💸 Payments & SOL Handling
 
 #### 🔹 For Users
 - Payment is made in **SOL** through a connected wallet.
