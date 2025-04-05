@@ -54,7 +54,7 @@ export default function userRouter(io: SocketIOServer): Router  {
         const [day, month, year] = datePart.split("-").map(Number);
         const [hours, minutes, seconds] = timePart.split("-").map(Number);
 
-        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        const timestamp = Date.UTC(year, month - 1, day, hours, minutes, seconds);
         // console.log("Parsed Timestamp (ms):", timestamp);
 
         if (isNaN(timestamp)) {

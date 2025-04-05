@@ -14,6 +14,6 @@ export const ACCESS_KEY_ID = requiredEnv("ACCESS_KEY_ID");
 export const SECRET_ACCESS_KEY = requiredEnv("SECRET_ACCESS_KEY");
 
 export const DEFAULT_TITLE = "Select the most clickable thumbnail";
-export const ALLOWED_TIME_DIFF = 10 * 60 * 1000;
+export const ALLOWED_TIME_DIFF = 5 * 60 * 1000;
 //This variable represents a fraction of a full SOL, specifically 1,000,000 lamports (which is 0.001 SOL).
 export const TOTAL_DECIMALS = 1000_000_000;
