@@ -44,11 +44,12 @@ export default function workerRouter(io: SocketIOServer): Router {
         const timestampStr = messageFE.replace(messagePrefix, "").trim();
         // console.log("Extracted Timestamp:", timestampStr);
 
-        const [datePart, timePart] = timestampStr.split("_");
-        const [day, month, year] = datePart.split("-").map(Number);
-        const [hours, minutes, seconds] = timePart.split("-").map(Number);
+        // const [datePart, timePart] = timestampStr.split("_");
+        // const [day, month, year] = datePart.split("-").map(Number);
+        // const [hours, minutes, seconds] = timePart.split("-").map(Number);
 
-        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        // const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        const timestamp = Date.parse(timestampStr); // parses ISO format
         // console.log("Parsed Timestamp (ms):", timestamp);
 
         if (isNaN(timestamp)) {
