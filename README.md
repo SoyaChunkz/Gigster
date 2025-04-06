@@ -66,7 +66,7 @@
 **Next.js + Tailwind CSS**  - Frontend (User & Worker Interfaces)  
 **Node.js + Express**       - Centralized backend API             
 **Neon.tech (PostgreSQL)**  - Primary database                     
-**Solana**                  - Decentralized, blockchain-based payments 
+**Solana**                  - Decentralized, blockchain-based payments
 **Amazon S3 + CloudFront**  - Media storage & global delivery      
 **Vercel**                  - Hosting frontends                    
 **Render**                  - Hosting backend                      
