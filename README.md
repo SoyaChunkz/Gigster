@@ -63,13 +63,12 @@
 
 ## ⚙️ Tech Stack
 
-**Next.js + Tailwind CSS**  - Frontend (User & Worker Interfaces)  
-**Node.js + Express**       - Centralized backend API             
-**Neon.tech (PostgreSQL)**  - Primary database                     
-**Amazon S3 + CloudFront**  - Media storage & global delivery     
-**Solana**                  - Decentralized blockchain-based payments
-**Vercel**                  - Hosting frontends                    
-**Render**                  - Hosting backend                      
+**Next.js + Tailwind CSS**  - Frontend (User & Worker Interfaces)
+**Node.js + Express**       - Centralized backend API
+**Neon.tech (PostgreSQL)**  - Primary database
+**Amazon S3 + CloudFront**  - Media storage & global delivery
+**Vercel**                  - Hosting frontends
+**Render**                  - Hosting backend
 
 ---
 
