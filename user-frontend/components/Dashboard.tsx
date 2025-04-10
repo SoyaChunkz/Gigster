@@ -79,7 +79,7 @@ export const Dashboard = () => {
           toast.success(response.data.message);
         }
       } catch (error) {
-        console.error("Something went wrong")
+        console.error("Something went wrong", error)
       }
     }
 
