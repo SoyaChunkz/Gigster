@@ -29,8 +29,8 @@ function userRouter(io) {
     const prisma = new client_1.PrismaClient();
     const s3Client = new client_s3_1.S3Client({
         credentials: {
-            accessKeyId: "AKIA4I2RJUVYBNISL6ND",
-            secretAccessKey: "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"
+            accessKeyId: config_1.ACCESS_KEY_ID,
+            secretAccessKey: config_1.SECRET_ACCESS_KEY
         },
         region: "us-east-1"
     });
@@ -53,10 +53,11 @@ function userRouter(io) {
         }
         const timestampStr = messageFE.replace(messagePrefix, "").trim();
         // console.log("Extracted Timestamp:", timestampStr);
-        const [datePart, timePart] = timestampStr.split("_");
-        const [day, month, year] = datePart.split("-").map(Number);
-        const [hours, minutes, seconds] = timePart.split("-").map(Number);
-        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        // const [datePart, timePart] = timestampStr.split("_");
+        // const [day, month, year] = datePart.split("-").map(Number);
+        // const [hours, minutes, seconds] = timePart.split("-").map(Number);
+        // const timestamp = Date.UTC(year, month - 1, day, hours, minutes, seconds);
+        const timestamp = Date.parse(timestampStr); // parses ISO format
         // console.log("Parsed Timestamp (ms):", timestamp);
         if (isNaN(timestamp)) {
             return res.status(400).json({ error: "Invalid timestamp format" });
@@ -222,7 +223,7 @@ function userRouter(io) {
                 }
             });
             if (!txnStore) {
-                return res.status(404).json({
+                return res.json({
                     message: "No unused transaction found"
                 });
             }
@@ -403,6 +404,67 @@ function userRouter(io) {
         });
     }));
     // @ts-ignore
+    router.delete("/task/:taskId", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
+        // @ts-ignore
+        const userId = req.userId;
+        const taskId = req.params.taskId;
+        // console.log("going to delete task: ", taskId);
+        try {
+            const task = yield prisma.task.findUnique({
+                where: {
+                    id: Number(taskId),
+                },
+                include: {
+                    options: true,
+                }
+            });
+            if (!task || task.user_id !== Number(userId)) {
+                return res.status(404).json({
+                    message: "Task not found or unauthorized.",
+                });
+            }
+            const options = task.options;
+            for (let index = 0; index < options.length; index++) {
+                const image_url = options[index].image_url;
+                const fileKey = image_url.replace(`${config_1.CLOUDFRONT_URL}/`, "");
+                if (!fileKey) {
+                    return res.status(400).json({ error: "File key is required" });
+                }
+                const command = new client_s3_1.DeleteObjectCommand({
+                    Bucket: "decentralised-gigster",
+                    Key: fileKey,
+                });
+                yield s3Client.send(command);
+            }
+            yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
+                yield tx.submission.deleteMany({
+                    where: {
+                        task_id: Number(taskId)
+                    },
+                });
+                yield tx.option.deleteMany({
+                    where: {
+                        task_id: Number(taskId)
+                    },
+                });
+                yield tx.task.delete({
+                    where: {
+                        id: Number(taskId),
+                    }
+                });
+            }));
+            return res.json({
+                message: "Task deleted successfully!",
+            });
+        }
+        catch (err) {
+            console.error("Error deleting task:", err);
+            return res.status(500).json({
+                message: "Something went wrong while deleting the task.",
+            });
+        }
+    }));
+    // @ts-ignore
     router.get("/tasks", middleware_1.userAuthMiddleware, (req, res) => __awaiter(this, void 0, void 0, function* () {
         try {
             // @ts-ignore
@@ -428,7 +490,7 @@ function userRouter(io) {
                     message: "No tasks for yet."
                 });
             }
-            console.log(tasks);
+            // console.log(tasks)
             return res.json({
                 tasks
             });

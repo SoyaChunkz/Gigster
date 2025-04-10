@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { USER_BACKEND_URL } from "@/utils";
+import {USER_BACKEND_URL } from "@/utils";
 import socket from "@/utils/socket";
 import { useAuth } from "./AuthContext";
-import { FiExternalLink, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiExternalLink, FiChevronDown, FiChevronUp, FiTrash } from "react-icons/fi";
+import toast from "react-hot-toast";
 
 export const Dashboard = () => {
 
@@ -24,6 +25,10 @@ export const Dashboard = () => {
         options: Option[];
         submissions: Submission[];
         done: boolean;
+    }
+
+    interface DeleteTask {
+      message: string
     }
 
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -52,6 +57,31 @@ export const Dashboard = () => {
             console.error("Error fetching tasks:", error);
         }
     };
+
+    const onDelete = async (taskId: string) => {
+      if (!isSignedIn) return;
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        setIsSignedIn(false);
+        return;
+      }
+
+      try {
+        const response = await axios.delete<DeleteTask>(`${USER_BACKEND_URL}/task/${taskId}`, { 
+            headers: {
+              "Authorization": `Bearer ${localStorage.getItem("token")}`,
+            },
+        });
+
+        if (response.data.message) {
+          fetchTasks();
+          toast.success(response.data.message);
+        }
+      } catch (error) {
+        console.error("Something went wrong")
+      }
+    }
 
     useEffect( () => {
 
@@ -121,8 +151,16 @@ export const Dashboard = () => {
                 return (
                   <div
                     key={task.id}
-                    className="bg-black/30 border border-white/10 shadow-xl rounded-xl p-6 text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:bg-slate-800 flex flex-col items-center justify-between"
+                    className="relative group bg-black/30 border border-white/10 shadow-xl rounded-xl p-6 text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:bg-slate-800 flex flex-col items-center justify-between"
                   >
+                    {/* Delete task Btn */}
+                    <button
+                      className="absolute top-5 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-white hover:text-red-500"
+                      onClick={() => onDelete(String(task.id))}
+                      title="Delete Task"
+                    >
+                      <FiTrash size={18}/>
+                    </button>
                     {/* Top Section */}
                     <div>
                       <h2 className="text-xl font-semibold flex items-center gap-2 text-indigo-200">

@@ -3,7 +3,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { JWT_SECRET, PARENT_WALLET_ADDRESS, DEFAULT_TITLE, ALLOWED_TIME_DIFF, ACCESS_KEY_ID, SECRET_ACCESS_KEY } from "../config";
+import { JWT_SECRET, PARENT_WALLET_ADDRESS, DEFAULT_TITLE, ALLOWED_TIME_DIFF, ACCESS_KEY_ID, SECRET_ACCESS_KEY, CLOUDFRONT_URL } from "../config";
 import { userAuthMiddleware } from "../middleware";
 import { createTaskInput } from "../types";
 import nacl from "tweetnacl";
@@ -448,7 +448,7 @@ export default function userRouter(io: SocketIOServer): Router  {
         const userId: string = req.userId; 
 
         const taskId: string = req.params.taskId;
-        console.log("starting to get task: ", taskId)
+        // console.log("starting to get task: ", taskId)
 
         const taskDetails = await prisma.task.findFirst({
             where: {
@@ -502,6 +502,81 @@ export default function userRouter(io: SocketIOServer): Router  {
     });
 
     // @ts-ignore
+    router.delete("/task/:taskId", userAuthMiddleware, async (req, res) => {
+
+        // @ts-ignore
+        const userId: string = req.userId;
+        const taskId: string = req.params.taskId;
+        // console.log("going to delete task: ", taskId);
+
+        try {
+            const task = await prisma.task.findUnique({
+                where: {
+                    id: Number(taskId),
+                },
+                include: {
+                    options: true,
+                }
+            });
+
+            if (!task || task.user_id !== Number(userId)) {
+                return res.status(404).json({
+                    message: "Task not found or unauthorized.",
+                });
+            }
+
+            const options = task.options;
+
+            for (let index = 0; index < options.length; index++) {
+                const image_url: string = options[index].image_url;
+                const fileKey = image_url.replace(`${CLOUDFRONT_URL}/`, "");
+
+                if (!fileKey) {
+                    return res.status(400).json({ error: "File key is required" });
+                }
+
+                const command = new DeleteObjectCommand({
+                    Bucket: "decentralised-gigster",
+                    Key: fileKey,
+                });
+
+                await s3Client.send(command);  
+            }
+
+            await prisma.$transaction(async tx => {
+
+                await tx.submission.deleteMany({
+                    where: {
+                        task_id: Number(taskId)
+                    },
+                });
+
+                await tx.option.deleteMany({
+                    where: {
+                        task_id: Number(taskId)
+                    },
+                });
+
+                await tx.task.delete({
+                    where: {
+                        id: Number(taskId),
+                    }
+                });
+            })
+
+            return res.json({
+                message: "Task deleted successfully!",
+            });
+
+        } catch (err) {
+            console.error("Error deleting task:", err);
+            return res.status(500).json({
+                message: "Something went wrong while deleting the task.",
+            });
+        }
+    })
+
+    // @ts-ignore
     router.get("/tasks", userAuthMiddleware, async (req, res) => {
 
         try {
@@ -531,7 +606,7 @@ export default function userRouter(io: SocketIOServer): Router  {
                 });
             }
 
-            console.log(tasks)
+            // console.log(tasks)
 
             return res.json({
                 tasks

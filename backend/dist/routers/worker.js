@@ -80,10 +80,11 @@ function workerRouter(io) {
         }
         const timestampStr = messageFE.replace(messagePrefix, "").trim();
         // console.log("Extracted Timestamp:", timestampStr);
-        const [datePart, timePart] = timestampStr.split("_");
-        const [day, month, year] = datePart.split("-").map(Number);
-        const [hours, minutes, seconds] = timePart.split("-").map(Number);
-        const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        // const [datePart, timePart] = timestampStr.split("_");
+        // const [day, month, year] = datePart.split("-").map(Number);
+        // const [hours, minutes, seconds] = timePart.split("-").map(Number);
+        // const timestamp = new Date(year, month - 1, day, hours, minutes, seconds).getTime();
+        const timestamp = Date.parse(timestampStr); // parses ISO format
         // console.log("Parsed Timestamp (ms):", timestamp);
         if (isNaN(timestamp)) {
             return res.status(400).json({ error: "Invalid timestamp format" });
@@ -135,7 +136,7 @@ function workerRouter(io) {
         const userId = req.userId;
         const task = yield (0, db_1.getNextTask)(Number(userId));
         if (!task) {
-            res.status(403).json({
+            res.json({
                 message: "No more tasks left for you to review."
             });
         }
