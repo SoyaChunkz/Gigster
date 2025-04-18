@@ -67,6 +67,7 @@
 - **Node.js + Express**       - Centralized backend API
 - **Neon.tech (PostgreSQL)**  - Primary database
 - **Amazon S3 + CloudFront**  - Media storage & global delivery
+- **Solana (Devnet)**         - Task creation & Worker payouts
 - **Vercel**                  - Hosting frontends
 - **Render**                  - Hosting backend
 
